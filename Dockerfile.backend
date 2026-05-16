@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+# System dependencies for RDKit, OpenMM, pdflatex
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libxrender1 \
+    libxext6 \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-bibtex-extra \
+    biber \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+COPY .env.example .env
+
+RUN mkdir -p static/figures static/manuscripts
+
+ENV PYTHONPATH=/app
+ENV STATIC_DIR=/app/static
+ENV FIGURES_DIR=/app/static/figures
+ENV MANUSCRIPT_DIR=/app/static/manuscripts
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

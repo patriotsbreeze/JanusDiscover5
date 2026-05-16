@@ -1,0 +1,50 @@
+# JanusDiscover Backend Requirements
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+httpx==0.28.1
+websockets==14.1
+python-multipart==0.0.20
+
+# Cheminformatics
+rdkit==2024.3.5
+biopython==1.84
+
+# ML / Drug Discovery
+scikit-learn==1.6.0
+numpy==2.2.0
+pandas==2.2.3
+scipy==1.15.0
+joblib==1.4.2
+
+# Visualization / Figures
+matplotlib==3.10.0
+seaborn==0.13.2
+plotly==5.24.1
+kaleido==0.2.1
+
+# Molecular Docking / SBDD
+vina==1.2.7
+
+# MD Simulation (OpenMM)
+openmm==8.1.2
+
+# Data sources
+requests==2.32.3
+chembl-webresource-client==0.10.9
+
+# LLM / Claude API
+anthropic==0.42.0
+
+# LaTeX / PDF generation
+jinja2==3.1.4
+
+# Async & utilities
+asyncio-mqtt==0.16.2
+aiofiles==24.1.0
+python-dotenv==1.0.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0

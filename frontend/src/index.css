@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #030712;
+    --color-card: #111827;
+    --color-border: #1f2937;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: #f9fafb;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111827;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-gray-900 border border-gray-800 rounded-2xl p-6;
+  }
+
+  .btn-primary {
+    @apply bg-janus-600 hover:bg-janus-500 text-white font-semibold px-5 py-2.5 rounded-xl
+           transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-janus-400 focus:ring-offset-2 focus:ring-offset-gray-900;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium px-5 py-2.5 rounded-xl
+           border border-gray-700 transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-gray-500;
+  }
+
+  .btn-danger {
+    @apply bg-red-900/40 hover:bg-red-800/60 text-red-300 font-medium px-5 py-2.5 rounded-xl
+           border border-red-800 transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .input-field {
+    @apply w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-gray-100
+           placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-janus-500
+           focus:border-transparent transition-all duration-200;
+  }
+
+  .step-header {
+    @apply flex items-center gap-3 mb-4;
+  }
+
+  .step-number {
+    @apply w-8 h-8 rounded-full bg-janus-700 flex items-center justify-center
+           text-sm font-bold text-white flex-shrink-0;
+  }
+
+  .metric-card {
+    @apply bg-gray-800/60 border border-gray-700 rounded-xl p-4 text-center;
+  }
+}
+
+/* Glow effects for active elements */
+.glow-blue {
+  box-shadow: 0 0 20px rgba(44, 107, 255, 0.15);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(26, 150, 65, 0.15);
+}
+
+/* Animated gradient border */
+@keyframes border-spin {
+  100% { transform: rotate(360deg); }
+}
+
+.gradient-border {
+  position: relative;
+  border-radius: 1rem;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(90deg, #2C6BFF, #1A9641, #2CA25F, #2C6BFF);
+  background-size: 200%;
+  border-radius: inherit;
+  z-index: -1;
+  animation: border-spin 4s linear infinite;
+  background-position: 0%;
+}
+
+/* Progress bar shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.progress-shimmer {
+  background: linear-gradient(90deg,
+    #2C6BFF 0%, #5590ff 50%, #2C6BFF 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
