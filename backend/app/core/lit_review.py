@@ -122,15 +122,22 @@ Respond ONLY with valid JSON matching this schema (no markdown fences):
 }}
 """
 
+        model = os.getenv("LLM_MODEL", "claude-opus-4-7")
         message = client.messages.create(
-            model="claude-opus-4-7",
+            model=model,
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}],
         )
         return json.loads(message.content[0].text)
 
     except Exception as e:
-        logger.warning(f"Claude synthesis failed: {e}. Using fallback.")
+        logger.warning(f"Claude synthesis failed ({type(e).__name__}: {e}). Using heuristic fallback.")
+        # Re-raise in real mode if it was an auth/key problem so the caller can inform the user
+        if "api_key" in str(e).lower() or "authentication" in str(e).lower():
+            raise RuntimeError(
+                "Anthropic API key is missing or invalid. "
+                "Set ANTHROPIC_API_KEY to enable AI literature synthesis in real mode."
+            ) from e
         return _fallback_synthesis(protein_name, pdb_ids, known_actives)
 
 

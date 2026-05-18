@@ -276,11 +276,24 @@ async def _run_md_bg(session_id: str, duration_ns: float, run_mode: str):
         update_session(session_id, status=SessionStatus.error, error_message=str(e))
 
 
+# ── Path traversal guard ──────────────────────────────────────────────────────
+
+def _safe_path(base: Path, *parts: str) -> Path:
+    """Resolve and verify path stays within base; raise 400 otherwise."""
+    try:
+        resolved = (base / Path(*parts)).resolve()
+        base_resolved = base.resolve()
+        resolved.relative_to(base_resolved)  # raises ValueError if outside base
+        return resolved
+    except (ValueError, Exception):
+        raise HTTPException(400, "Invalid path")
+
+
 # ── File download endpoints ───────────────────────────────────────────────────
 
 @router.get("/figures/{session_id}/{filename}")
 async def serve_figure(session_id: str, filename: str):
-    path = FIGURES_BASE / session_id / filename
+    path = _safe_path(FIGURES_BASE, session_id, filename)
     if not path.exists():
         raise HTTPException(404, "Figure not found")
     return FileResponse(str(path), media_type="image/png")
@@ -288,7 +301,7 @@ async def serve_figure(session_id: str, filename: str):
 
 @router.get("/manuscript/{session_id}/tex")
 async def download_tex(session_id: str):
-    path = MANUSCRIPT_BASE / session_id / "manuscript.tex"
+    path = _safe_path(MANUSCRIPT_BASE, session_id, "manuscript.tex")
     if not path.exists():
         raise HTTPException(404, "Manuscript not found")
     return FileResponse(str(path), media_type="text/plain",
@@ -297,7 +310,7 @@ async def download_tex(session_id: str):
 
 @router.get("/manuscript/{session_id}/pdf")
 async def download_pdf(session_id: str):
-    path = MANUSCRIPT_BASE / session_id / "manuscript.pdf"
+    path = _safe_path(MANUSCRIPT_BASE, session_id, "manuscript.pdf")
     if not path.exists():
         raise HTTPException(404, "PDF not compiled (pdflatex not available)")
     return FileResponse(str(path), media_type="application/pdf",
@@ -306,7 +319,7 @@ async def download_pdf(session_id: str):
 
 @router.get("/manuscript/{session_id}/bib")
 async def download_bib(session_id: str):
-    path = MANUSCRIPT_BASE / session_id / "refs.bib"
+    path = _safe_path(MANUSCRIPT_BASE, session_id, "refs.bib")
     if not path.exists():
         raise HTTPException(404, "Bibliography not found")
     return FileResponse(str(path), media_type="text/plain",

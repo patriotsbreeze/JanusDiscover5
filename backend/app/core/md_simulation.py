@@ -218,9 +218,16 @@ async def run_md(
             "mock": False,
         }
 
+    except ImportError as e:
+        raise RuntimeError(
+            f"MD simulation dependency missing: {e}. "
+            "Install OpenMM 8 and MDAnalysis: conda install -c conda-forge openmm && pip install MDAnalysis"
+        ) from e
+    except FileNotFoundError as e:
+        raise RuntimeError(f"MD input file not found: {e}") from e
     except Exception as e:
-        logger.error(f"[MD] Real simulation failed: {e}. Falling back to mock.")
-        return _mock_md(session_id, duration_ns, figures_dir, t0)
+        logger.error(f"[MD] Real simulation failed ({type(e).__name__}): {e}")
+        raise RuntimeError(f"MD simulation failed: {e}") from e
 
 
 def _cuda_available() -> bool:

@@ -354,10 +354,127 @@ def _generate_lbdd_figures(y, y_prob, roc_curve_fn, pr_curve_fn, figures_dir: Pa
     return [Path(f).name for f in figs]
 
 
+# ── SMILES validation ─────────────────────────────────────────────────────────
+
+def _validate_smiles(smiles_list: list[str]) -> list[str]:
+    """Return only parseable, non-empty SMILES."""
+    Chem, _, _ = _rdkit()
+    valid = []
+    for smi in smiles_list:
+        smi = smi.strip()
+        if not smi:
+            continue
+        try:
+            mol = Chem.MolFromSmiles(smi)
+            if mol is not None and mol.GetNumAtoms() > 0:
+                valid.append(smi)
+        except Exception:
+            pass
+    return valid
+
+
 # ── Dataset loading ────────────────────────────────────────────────────────────
 
+# Local cache dir for downloaded datasets
+_CACHE_DIR = Path(os.getenv("DATASET_CACHE_DIR", "/tmp/janusdiscover_datasets"))
+
+# Canonical ZINC-250k download URL (Irwin et al. 2012, J Chem Inf Model 52:1757)
+_ZINC250K_URL = "https://raw.githubusercontent.com/aspuru-guzik-group/chemical_vae/master/models/zinc_properties/250k_rndm_zinc_drugs_clean_3.csv"
+
+
 def _load_dataset(dataset: str) -> list[str]:
-    """Return SMILES list for the given dataset identifier."""
-    # In a real deployment, these would load from local files or download from ZINC/ChEMBL.
-    # Here we return the mock actives + additional decoys for demonstration.
-    return MOCK_ACTIVES + MOCK_INACTIVES * 5
+    """Return validated SMILES list for the given dataset identifier.
+
+    In real deployments this downloads/caches from canonical sources.
+    Falls back to the built-in mock set if the download fails so the
+    pipeline never silently returns zero compounds.
+    """
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    try:
+        if dataset == "zinc_250k":
+            return _load_zinc250k()
+        elif dataset == "fda_approved":
+            return _load_fda_approved()
+        elif dataset == "chembl":
+            return _load_chembl_subset()
+        else:
+            # custom or unknown — fall back to mock
+            logger.warning(f"Unknown dataset '{dataset}', using built-in mock set")
+            return _validate_smiles(MOCK_ACTIVES + MOCK_INACTIVES * 5)
+    except Exception as e:
+        logger.error(f"Dataset load failed for '{dataset}': {e}. Falling back to mock set.")
+        return _validate_smiles(MOCK_ACTIVES + MOCK_INACTIVES * 5)
+
+
+def _load_zinc250k() -> list[str]:
+    """Download/cache ZINC-250k and return SMILES list."""
+    cache_file = _CACHE_DIR / "zinc250k.smi"
+    if cache_file.exists():
+        smiles = cache_file.read_text().splitlines()
+        return _validate_smiles(smiles)
+
+    import requests
+    logger.info("Downloading ZINC-250k dataset (~6 MB)…")
+    r = requests.get(_ZINC250K_URL, timeout=60)
+    r.raise_for_status()
+
+    import csv, io
+    reader = csv.DictReader(io.StringIO(r.text))
+    smiles = [row.get("smiles", row.get("SMILES", "")) for row in reader]
+    smiles = [s for s in smiles if s.strip()]
+
+    cache_file.write_text("\n".join(smiles))
+    logger.info(f"ZINC-250k: {len(smiles)} compounds cached at {cache_file}")
+    return _validate_smiles(smiles)
+
+
+def _load_fda_approved() -> list[str]:
+    """Fetch FDA-approved small molecules from ChEMBL (max_phase=4)."""
+    cache_file = _CACHE_DIR / "fda_approved.smi"
+    if cache_file.exists():
+        return _validate_smiles(cache_file.read_text().splitlines())
+
+    logger.info("Fetching FDA-approved compounds from ChEMBL…")
+    try:
+        from chembl_webresource_client.new_client import new_client
+        mols = new_client.molecule
+        approved = mols.filter(max_phase=4).only(["molecule_chembl_id", "molecule_structures"])
+        smiles = []
+        for m in approved:
+            structs = m.get("molecule_structures") or {}
+            smi = structs.get("canonical_smiles", "")
+            if smi:
+                smiles.append(smi)
+        cache_file.write_text("\n".join(smiles))
+        logger.info(f"FDA-approved: {len(smiles)} compounds cached")
+        return _validate_smiles(smiles)
+    except Exception as e:
+        raise RuntimeError(f"ChEMBL FDA query failed: {e}") from e
+
+
+def _load_chembl_subset() -> list[str]:
+    """Fetch a 50k drug-like subset from ChEMBL."""
+    cache_file = _CACHE_DIR / "chembl_subset.smi"
+    if cache_file.exists():
+        return _validate_smiles(cache_file.read_text().splitlines())
+
+    logger.info("Fetching ChEMBL drug-like subset…")
+    try:
+        from chembl_webresource_client.new_client import new_client
+        mols = new_client.molecule
+        subset = mols.filter(
+            molecule_properties__mw_freebase__lte=500,
+            molecule_properties__alogp__lte=5,
+        ).only(["molecule_structures"])[:50000]
+        smiles = []
+        for m in subset:
+            structs = m.get("molecule_structures") or {}
+            smi = structs.get("canonical_smiles", "")
+            if smi:
+                smiles.append(smi)
+        cache_file.write_text("\n".join(smiles))
+        logger.info(f"ChEMBL subset: {len(smiles)} compounds cached")
+        return _validate_smiles(smiles)
+    except Exception as e:
+        raise RuntimeError(f"ChEMBL subset query failed: {e}") from e

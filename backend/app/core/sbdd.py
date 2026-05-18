@@ -144,15 +144,34 @@ async def run_sbdd(
     logger.info(f"[SBDD] Starting real pipeline for {protein_name}, PDB: {pdb_ids}")
 
     pdb_id = pdb_ids[0] if pdb_ids else None
+    if pdb_id is None:
+        raise RuntimeError(
+            f"No PDB structure found for '{protein_name}'. "
+            "SBDD requires a resolved crystal structure. "
+            "Try LBDD or Hybrid mode, or supply a custom PDB file."
+        )
+
     receptor_path = await _prepare_receptor(pdb_id, protein_name)
     ligand_smiles_list = _load_dataset(dataset)
+    if not ligand_smiles_list:
+        raise RuntimeError(f"Dataset '{dataset}' returned zero valid SMILES.")
 
     scores_list = []
-    hit_smiles = []
+    n_failed = 0
     for i, smi in enumerate(ligand_smiles_list[:500]):  # limit for demo
         score = await _dock_ligand(smi, receptor_path, i)
         if score is not None:
             scores_list.append((smi, score))
+        else:
+            n_failed += 1
+
+    failure_rate = n_failed / max(1, len(ligand_smiles_list[:500]))
+    if failure_rate > 0.9:
+        raise RuntimeError(
+            f"Docking failed for {failure_rate:.0%} of ligands. "
+            "Check that AutoDock Vina is installed and the receptor PDBQT is valid."
+        )
+    logger.info(f"[SBDD] Docked {len(scores_list)} ligands successfully ({n_failed} failed)")
 
     scores_list.sort(key=lambda x: x[1])
     hits = []
@@ -250,8 +269,10 @@ async def _dock_ligand(smiles: str, receptor_path: str, idx: int) -> float | Non
 
 
 def _load_dataset(dataset: str) -> list[str]:
-    from .lbdd import MOCK_ACTIVES, MOCK_INACTIVES
-    return MOCK_ACTIVES + MOCK_INACTIVES * 5
+    # Delegate to the canonical loader in lbdd.py which handles caching,
+    # ZINC-250k download, ChEMBL/FDA queries, and SMILES validation.
+    from .lbdd import _load_dataset as _lbdd_load
+    return _lbdd_load(dataset)
 
 
 # ── Figure generation ─────────────────────────────────────────────────────────

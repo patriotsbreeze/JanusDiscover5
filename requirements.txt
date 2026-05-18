@@ -27,8 +27,9 @@ kaleido==0.2.1
 # Molecular Docking / SBDD
 vina==1.2.7
 
-# MD Simulation (OpenMM)
+# MD Simulation (OpenMM + trajectory analysis)
 openmm==8.1.2
+MDAnalysis==2.7.0
 
 # Data sources
 requests==2.32.3
@@ -40,8 +41,10 @@ anthropic==0.42.0
 # LaTeX / PDF generation
 jinja2==3.1.4
 
+# Rate limiting
+slowapi==0.1.9
+
 # Async & utilities
-asyncio-mqtt==0.16.2
 aiofiles==24.1.0
 python-dotenv==1.0.1
 

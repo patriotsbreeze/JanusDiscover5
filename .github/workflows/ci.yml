@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install core dependencies (no heavy chem deps)
+        run: |
+          pip install \
+            fastapi==0.115.6 \
+            uvicorn==0.32.1 \
+            pydantic==2.10.4 \
+            httpx==0.28.1 \
+            numpy==2.2.0 \
+            pandas==2.2.3 \
+            scipy==1.15.0 \
+            scikit-learn==1.6.0 \
+            matplotlib==3.10.0 \
+            seaborn==0.13.2 \
+            requests==2.32.3 \
+            anthropic==0.42.0 \
+            jinja2==3.1.4 \
+            aiofiles==24.1.0 \
+            python-dotenv==1.0.1 \
+            slowapi==0.1.9 \
+            pytest==8.3.4 \
+            pytest-asyncio==0.25.0 \
+            httpx  # for TestClient
+
+      - name: Install RDKit (lightweight conda-free build)
+        run: pip install rdkit==2024.3.5 || pip install rdkit-pypi || echo "RDKit unavailable, metrics tests will still run"
+
+      - name: Run unit tests (metrics, SMILES, LaTeX escaping)
+        run: pytest tests/test_metrics.py -v
+
+      - name: Run mock workflow integration tests
+        run: pytest tests/test_mock_workflow.py -v --timeout=120
+        env:
+          STATIC_DIR: /tmp/janusdiscover_test_static
+          FIGURES_DIR: /tmp/janusdiscover_test_static/figures
+          MANUSCRIPT_DIR: /tmp/janusdiscover_test_static/manuscripts
+          ALLOWED_ORIGINS: "http://localhost:3000"
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check & build
+        run: npm run build

@@ -22,6 +22,19 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Special characters that must be escaped in LaTeX text mode
+_LATEX_SPECIAL = {
+    "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#",
+    "_": r"\_", "{": r"\{", "}": r"\}",
+    "~": r"\textasciitilde{}", "^": r"\textasciicircum{}",
+    "\\": r"\textbackslash{}",
+}
+
+
+def _latex_escape(text: str) -> str:
+    """Escape user-supplied text for safe inclusion in LaTeX source."""
+    return "".join(_LATEX_SPECIAL.get(c, c) for c in str(text))
+
 
 # ── BibTeX database ────────────────────────────────────────────────────────────
 
@@ -203,6 +216,10 @@ def _build_latex(
 ) -> str:
 
     method_label = {"lbdd": "LBDD", "sbdd": "SBDD", "hybrid": "Hybrid LBDD+SBDD"}.get(method, method.upper())
+
+    # Escape user-supplied strings for safe LaTeX inclusion
+    protein_name = _latex_escape(protein_name)
+    method_label = _latex_escape(method_label)
 
     # Build figure inclusion lines (only figures that exist)
     fig_latex = ""

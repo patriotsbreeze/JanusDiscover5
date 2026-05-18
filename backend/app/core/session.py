@@ -3,9 +3,12 @@ In-memory session store for JanusDiscover.
 
 Keeps track of lit review results, discovery results, MD results,
 and figures per session so the frontend can poll for updates.
+
+Sessions are purged after SESSION_TTL seconds by the cleanup task in main.py.
 """
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any, Optional
 from dataclasses import dataclass, field
@@ -40,14 +43,20 @@ class Session:
     progress_pct: int = 0
     progress_msg: str = ""
     figures_dir: str = ""
+    _created_at: float = field(default_factory=time.time)
 
 
 _store: dict[str, Session] = {}
 
 
 def create_session(protein_name: str, run_mode: str) -> Session:
+    # Sanitise protein_name: strip, cap length, discard non-printable chars
+    clean_name = "".join(c for c in protein_name.strip() if c.isprintable())[:120]
+    if not clean_name:
+        raise ValueError("protein_name is empty after sanitisation")
+
     sid = str(uuid.uuid4())
-    session = Session(session_id=sid, protein_name=protein_name, run_mode=run_mode)
+    session = Session(session_id=sid, protein_name=clean_name, run_mode=run_mode)
     _store[sid] = session
     return session
 
