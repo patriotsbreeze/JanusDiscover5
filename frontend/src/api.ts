@@ -62,11 +62,18 @@ export interface TherapyEntry {
   year?: number
 }
 
+export interface PaperEntry {
+  citation: string
+  title: string
+  summary: string
+  url: string
+}
+
 export interface DiscoveryHistory {
   lbdd_done: boolean
   sbdd_done: boolean
   hybrid_done: boolean
-  key_papers: string[]
+  key_papers: PaperEntry[]
   existing_scaffolds: string[]
 }
 

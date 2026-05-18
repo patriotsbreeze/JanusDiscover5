@@ -9,9 +9,11 @@ Mock mode  : returns pre-canned but realistic data so the full UI workflow can
 from __future__ import annotations
 
 import os
+import re
 import uuid
 import json
 import logging
+import xml.etree.ElementTree as ET
 from typing import Optional
 
 import httpx
@@ -21,6 +23,7 @@ from ..models.schemas import (
     DiscoveryMethod,
     LitReviewResult,
     LLMProvider,
+    PaperEntry,
     RunMode,
     TherapyEntry,
 )
@@ -191,48 +194,99 @@ async def _fetch_existing_drugs(chembl_target_id: str) -> list[dict]:
         return []
 
 
-def _format_citation(authors: str, year: str, journal: str, volume: str = "") -> str:
-    last = authors.split(",")[0].strip().split(" ")[-1] if authors else "Unknown"
-    c = f"{last} et al. {year} {journal}"
-    return (c + f" {volume}").strip() if volume else c.strip()
+def _first_sentences(text: str, n: int = 2, max_chars: int = 320) -> str:
+    """Truncate text to at most n sentences or max_chars, whichever comes first."""
+    if not text:
+        return ""
+    parts = re.split(r'(?<=[.!?])\s+', text.strip())
+    result = " ".join(parts[:n])
+    if len(result) > max_chars:
+        result = result[:max_chars].rsplit(" ", 1)[0] + "…"
+    return result
 
 
-async def _fetch_pubmed_papers(protein_name: str) -> list[str]:
-    """Query PubMed via NCBI E-utilities (no key needed for basic use)."""
+def _last_name(author_string: str) -> str:
+    if not author_string:
+        return "Unknown"
+    first = author_string.split(",")[0].strip()
+    return first.split(" ")[-1]
+
+
+async def _fetch_pubmed_papers(protein_name: str) -> list[PaperEntry]:
+    """
+    Query PubMed via NCBI E-utilities:
+    - esearch for IDs (relevance-sorted)
+    - efetch XML for title + abstract + DOI in one batch call
+    """
     try:
         base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-        query = f'("{protein_name}"[Title/Abstract]) AND (inhibitor OR "drug discovery" OR "virtual screening" OR "molecular docking")'
-        async with httpx.AsyncClient(timeout=15) as client:
-            # Search
+        query = (
+            f'("{protein_name}"[Title/Abstract]) AND '
+            f'(inhibitor OR "drug discovery" OR "virtual screening" OR "molecular docking")'
+        )
+        async with httpx.AsyncClient(timeout=20) as client:
             sr = await client.get(f"{base}/esearch.fcgi", params={
                 "db": "pubmed", "term": query,
-                "sort": "relevance", "retmax": "10", "retmode": "json",
+                "sort": "relevance", "retmax": "8", "retmode": "json",
             })
             ids = sr.json().get("esearchresult", {}).get("idlist", []) if sr.status_code == 200 else []
             if not ids:
                 return []
 
-            # Fetch summaries
-            sumr = await client.get(f"{base}/esummary.fcgi", params={
-                "db": "pubmed", "id": ",".join(ids), "retmode": "json",
+            # Batch fetch full records as XML for title + abstract + DOI
+            fr = await client.get(f"{base}/efetch.fcgi", params={
+                "db": "pubmed", "id": ",".join(ids),
+                "rettype": "abstract", "retmode": "xml",
             })
-            summaries = sumr.json().get("result", {}) if sumr.status_code == 200 else {}
 
-        papers: list[str] = []
-        for uid in ids:
-            s = summaries.get(uid, {})
-            if not isinstance(s, dict):
-                continue
-            authors_list = s.get("authors", [])
-            first_author = authors_list[0].get("name", "").split(" ")[-1] if authors_list else "Unknown"
-            year = s.get("pubdate", "")[:4]
-            journal = s.get("source", "")
-            volume = s.get("volume", "")
-            c = f"{first_author} et al. {year} {journal}"
-            if volume:
-                c += f" {volume}"
-            if c.strip():
-                papers.append(c.strip())
+        papers: list[PaperEntry] = []
+        if fr.status_code == 200:
+            try:
+                root = ET.fromstring(fr.text)
+            except ET.ParseError:
+                return []
+
+            for article in root.findall(".//PubmedArticle"):
+                pmid_el = article.find(".//PMID")
+                pmid = pmid_el.text if pmid_el is not None else ""
+
+                title_el = article.find(".//ArticleTitle")
+                title = "".join(title_el.itertext()) if title_el is not None else ""
+
+                # Abstract may have multiple labeled sections
+                abstract_parts = article.findall(".//AbstractText")
+                abstract = " ".join(
+                    ("".join(p.itertext())) for p in abstract_parts
+                ).strip()
+
+                # Authors
+                author_els = article.findall(".//Author")
+                last_names = [
+                    (a.findtext("LastName") or "")
+                    for a in author_els if a.findtext("LastName")
+                ]
+                first_last = last_names[0] if last_names else "Unknown"
+
+                # Journal + year + volume
+                journal = article.findtext(".//ISOAbbreviation") or article.findtext(".//Title") or ""
+                year = article.findtext(".//PubDate/Year") or article.findtext(".//PubDate/MedlineDate", "")[:4]
+                volume = article.findtext(".//Volume") or ""
+
+                # DOI
+                doi_el = article.find(".//ArticleId[@IdType='doi']")
+                doi = doi_el.text.strip() if doi_el is not None else None
+                url = f"https://doi.org/{doi}" if doi else (f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "")
+
+                citation = f"{first_last} et al. {year} {journal}"
+                if volume:
+                    citation += f" {volume}"
+
+                papers.append(PaperEntry(
+                    citation=citation.strip(),
+                    title=title,
+                    summary=_first_sentences(abstract),
+                    url=url,
+                ))
 
         return papers
     except Exception as exc:
@@ -240,8 +294,8 @@ async def _fetch_pubmed_papers(protein_name: str) -> list[str]:
         return []
 
 
-async def _fetch_europepmc_papers(protein_name: str) -> list[str]:
-    """Query Europe PMC sorted by citation count."""
+async def _fetch_europepmc_papers(protein_name: str) -> list[PaperEntry]:
+    """Query Europe PMC (sorted by citation count) — returns abstracts and DOIs."""
     try:
         query = (
             f'("{protein_name}" OR "{protein_name} inhibitor") AND '
@@ -257,15 +311,28 @@ async def _fetch_europepmc_papers(protein_name: str) -> list[str]:
             r.raise_for_status()
             results = r.json().get("resultList", {}).get("result", [])
 
-        papers: list[str] = []
+        papers: list[PaperEntry] = []
         for p in results:
             authors = p.get("authorString", "")
-            year = p.get("pubYear", "")
+            year = str(p.get("pubYear", ""))
             journal = p.get("journalTitle", "") or p.get("journalAbbreviation", "")
             volume = p.get("journalInfo", {}).get("volume", "") if isinstance(p.get("journalInfo"), dict) else ""
-            c = _format_citation(authors, year, journal, volume)
-            if c:
-                papers.append(c)
+            title = p.get("title", "").rstrip(".")
+            abstract = p.get("abstractText", "")
+            doi = p.get("doi", "")
+            pmid = p.get("pmid", "")
+            url = f"https://doi.org/{doi}" if doi else (f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "")
+
+            citation = f"{_last_name(authors)} et al. {year} {journal}"
+            if volume:
+                citation += f" {volume}"
+
+            papers.append(PaperEntry(
+                citation=citation.strip(),
+                title=title,
+                summary=_first_sentences(abstract),
+                url=url,
+            ))
 
         return papers
     except Exception as exc:
@@ -273,10 +340,11 @@ async def _fetch_europepmc_papers(protein_name: str) -> list[str]:
         return []
 
 
-async def _fetch_key_papers(protein_name: str) -> list[str]:
+async def _fetch_key_papers(protein_name: str) -> list[PaperEntry]:
     """
-    Query PubMed AND Europe PMC concurrently, merge, deduplicate, return top 10.
-    Deduplication is by first-author + year (close enough to avoid exact-match issues).
+    Query PubMed AND Europe PMC concurrently, merge + deduplicate by author+year.
+    Europe PMC results lead (better citation ranking); PubMed fills gaps.
+    Returns up to 10 PaperEntry objects with title, summary, and URL.
     """
     import asyncio as _aio
     pubmed, epmc = await _aio.gather(
@@ -285,10 +353,9 @@ async def _fetch_key_papers(protein_name: str) -> list[str]:
     )
 
     seen_keys: set[str] = set()
-    merged: list[str] = []
-    for paper in pubmed + epmc:
-        # key = first two words (author + year) — good-enough dedup
-        key = " ".join(paper.split()[:2]).lower()
+    merged: list[PaperEntry] = []
+    for paper in epmc + pubmed:  # epmc first (has citation count ranking)
+        key = " ".join(paper.citation.split()[:2]).lower()
         if key not in seen_keys:
             seen_keys.add(key)
             merged.append(paper)
@@ -321,10 +388,16 @@ def _build_prompt(
     pdb_ids: list[str],
     known_actives: int,
     existing_drugs: list[dict],
-    key_papers: list[str],
+    key_papers: list[PaperEntry],
 ) -> str:
     drugs_json = json.dumps(existing_drugs, indent=2) if existing_drugs else "None found in ChEMBL"
-    papers_text = "\n".join(f"  - {p}" for p in key_papers) if key_papers else "  None found"
+    if key_papers:
+        papers_text = "\n".join(
+            f"  - {p.citation}" + (f" — {p.title}" if p.title else "")
+            for p in key_papers
+        )
+    else:
+        papers_text = "  None found"
     return f"""You are an expert medicinal chemist and computational biologist.
 Provide a structured literature review for the protein target: {protein_name}.
 
@@ -367,7 +440,7 @@ async def _llm_synthesis(
     pdb_ids: list[str],
     known_actives: int,
     existing_drugs: list[dict],
-    key_papers: list[str],
+    key_papers: list[PaperEntry],
     provider: LLMProvider,
     api_key: Optional[str],
     model: Optional[str],
@@ -379,11 +452,34 @@ async def _llm_synthesis(
 
     try:
         text = await _call_provider(provider_str, api_key, model, prompt)
-        # Strip any accidental markdown fences
         text = text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-        return json.loads(text)
+        data = json.loads(text)
+
+        # LLM returns key_papers as plain strings. Merge with the rich database
+        # entries (which carry title/summary/url) by matching citation prefixes.
+        llm_citations: list[str] = data.get("discovery_history", {}).get("key_papers", [])
+        db_map = {" ".join(p.citation.split()[:2]).lower(): p for p in key_papers}
+        merged_papers: list[dict] = []
+        seen: set[str] = set()
+        for raw in llm_citations:
+            key = " ".join(str(raw).split()[:2]).lower()
+            if key in db_map and key not in seen:
+                seen.add(key)
+                merged_papers.append(db_map[key].model_dump())
+            elif key not in seen:
+                seen.add(key)
+                merged_papers.append({"citation": raw, "title": "", "summary": "", "url": ""})
+        # Append any database papers the LLM didn't mention
+        for p in key_papers:
+            k = " ".join(p.citation.split()[:2]).lower()
+            if k not in seen:
+                seen.add(k)
+                merged_papers.append(p.model_dump())
+
+        data["discovery_history"]["key_papers"] = merged_papers
+        return data
     except Exception as e:
         logger.warning(f"{provider_str} synthesis failed ({type(e).__name__}: {e}). Using data fallback.")
         err = str(e).lower()
@@ -464,27 +560,22 @@ def _fallback_synthesis(
     pdb_ids: list[str],
     known_actives: int,
     existing_drugs: list[dict] | None = None,
-    key_papers: list[str] | None = None,
+    key_papers: list[PaperEntry] | None = None,
 ) -> dict:
     has_struct = bool(pdb_ids)
     method = "hybrid" if has_struct and known_actives > 50 else ("sbdd" if has_struct else "lbdd")
-
-    therapies = existing_drugs if existing_drugs else []
-
-    papers = key_papers if key_papers else []
-
     return {
         "description": (
             f"{protein_name} is a therapeutically relevant target implicated in multiple "
             "disease pathways. Structural and biochemical data indicate tractability for "
             "small-molecule modulation."
         ),
-        "existing_therapies": therapies,
+        "existing_therapies": existing_drugs or [],
         "discovery_history": {
             "lbdd_done": known_actives > 20,
             "sbdd_done": has_struct,
             "hybrid_done": has_struct and known_actives > 50,
-            "key_papers": papers,
+            "key_papers": [p.model_dump() for p in (key_papers or [])],
             "existing_scaffolds": [],
         },
         "recommended_method": method,
@@ -530,10 +621,30 @@ _MOCK_DATA: dict[str, dict] = {
             "sbdd_done": True,
             "hybrid_done": True,
             "key_papers": [
-                "Druker et al. 2001 N Engl J Med 344:1031",
-                "Nagar et al. 2002 Science 296:1569",
-                "Zhao et al. 2019 J Med Chem 62:3428",
-                "Schindler et al. 2000 Science 289:1938",
+                {
+                    "citation": "Druker et al. 2001 N Engl J Med 344",
+                    "title": "Efficacy and Safety of a Specific Inhibitor of the BCR-ABL Tyrosine Kinase in Chronic Myeloid Leukemia",
+                    "summary": "Landmark Phase I trial of imatinib in CML patients showing 98% haematologic response rate. Established BCR-ABL kinase inhibition as a viable therapeutic strategy.",
+                    "url": "https://doi.org/10.1056/NEJM200104053441401",
+                },
+                {
+                    "citation": "Nagar et al. 2002 Science 296",
+                    "title": "Structural Basis for the Autoinhibition of c-Abl Tyrosine Kinase",
+                    "summary": "Crystal structure of Abl kinase in complex with imatinib revealing the inactive DFG-out conformation. Provided the structural rationale for drug selectivity.",
+                    "url": "https://doi.org/10.1126/science.1070150",
+                },
+                {
+                    "citation": "Zhao et al. 2019 J Med Chem 62",
+                    "title": "Discovery of Potent and Selective Covalent Inhibitors of SHP2",
+                    "summary": "Application of structure-based and ligand-based virtual screening to identify allosteric inhibitor scaffolds against a challenging PTP target.",
+                    "url": "https://doi.org/10.1021/acs.jmedchem.9b00323",
+                },
+                {
+                    "citation": "Schindler et al. 2000 Science 289",
+                    "title": "Structural Mechanism for STI-571 Inhibition of Abelson Tyrosine Kinase",
+                    "summary": "X-ray structure of imatinib bound to the Abl kinase domain demonstrating type-II binding mode. Underpins all subsequent SBDD campaigns against ABL1.",
+                    "url": "https://doi.org/10.1126/science.289.5486.1938",
+                },
             ],
             "existing_scaffolds": [
                 "Cc1ccc(cc1Nc2nccc(n2)c3cccnc3)NC(=O)c4ccc(cc4)CN5CCN(CC5)C",

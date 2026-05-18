@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, CheckCircle2, ChevronDown, Circle, Pill, TestTube } from 'lucide-react'
-import { LitReviewResult } from '../api'
+import { motion } from 'framer-motion'
+import { BookOpen, CheckCircle2, ChevronDown, Circle, ExternalLink, Pill, TestTube } from 'lucide-react'
+import { LitReviewResult, PaperEntry } from '../api'
 
 interface Props { result: LitReviewResult }
 
@@ -174,14 +174,43 @@ export function LitReviewPanel({ result }: Props) {
           items={result.discovery_history.key_papers}
           empty={
             <p className="text-gray-600 text-sm italic">
-              No publications found in Europe PMC for this target.
+              No publications found in PubMed or Europe PMC for this target.
             </p>
           }
-          renderItem={(p, i) => (
-            <li className="flex items-start gap-2.5 text-sm text-gray-400 list-none">
-              <span className="text-gray-600 mt-0.5 flex-shrink-0 w-5 text-right">{i + 1}.</span>
-              <span>{p}</span>
-            </li>
+          renderItem={(p: PaperEntry, i) => (
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-gray-800/40 border border-gray-800">
+              <span className="text-gray-600 text-xs mt-0.5 flex-shrink-0 w-4 text-right">{i + 1}.</span>
+              <div className="min-w-0 flex-1">
+                {p.title ? (
+                  p.url ? (
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-janus-300 hover:text-white text-sm font-medium leading-snug inline-flex items-start gap-1 group"
+                    >
+                      <span>{p.title}</span>
+                      <ExternalLink size={11} className="flex-shrink-0 mt-0.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  ) : (
+                    <p className="text-white text-sm font-medium leading-snug">{p.title}</p>
+                  )
+                ) : p.url ? (
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-janus-300 hover:text-white text-sm font-medium inline-flex items-center gap-1"
+                  >
+                    {p.citation} <ExternalLink size={11} className="opacity-50" />
+                  </a>
+                ) : null}
+                <p className="text-gray-500 text-xs mt-0.5">{p.citation}</p>
+                {p.summary && (
+                  <p className="text-gray-400 text-xs mt-1.5 leading-relaxed">{p.summary}</p>
+                )}
+              </div>
+            </div>
           )}
         />
       </div>

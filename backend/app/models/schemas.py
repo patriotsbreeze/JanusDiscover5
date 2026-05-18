@@ -72,11 +72,18 @@ class TherapyEntry(BaseModel):
     year: Optional[int] = None
 
 
+class PaperEntry(BaseModel):
+    citation: str
+    title: str = ""
+    summary: str = ""
+    url: str = ""
+
+
 class DiscoveryHistory(BaseModel):
     lbdd_done: bool
     sbdd_done: bool
     hybrid_done: bool
-    key_papers: list[str]
+    key_papers: list[PaperEntry]
     existing_scaffolds: list[str]
 
 
