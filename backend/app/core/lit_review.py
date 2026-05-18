@@ -79,6 +79,116 @@ async def _fetch_pdb_ids(protein_name: str) -> list[str]:
         return []
 
 
+async def _fetch_existing_drugs(chembl_target_id: str) -> list[dict]:
+    """
+    Query ChEMBL mechanism table for drugs/compounds that act on this target,
+    then enrich with molecule name + max_phase from the molecule endpoint.
+    Returns list of dicts suitable for TherapyEntry.
+    """
+    if not chembl_target_id:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(
+                f"{CHEMBL_API}/mechanism.json",
+                params={"target_chembl_id": chembl_target_id, "limit": 20},
+            )
+            r.raise_for_status()
+            mechs = r.json().get("mechanisms", [])
+
+        if not mechs:
+            return []
+
+        # Deduplicate by molecule_chembl_id, keep highest-phase unique molecule
+        seen: dict[str, dict] = {}
+        for m in mechs:
+            mid = m.get("molecule_chembl_id", "")
+            if mid and mid not in seen:
+                seen[mid] = m
+
+        # Enrich with molecule details (name, max_phase, first_approval)
+        therapies: list[dict] = []
+        async with httpx.AsyncClient(timeout=20) as client:
+            for mid, mech in list(seen.items())[:10]:
+                try:
+                    mr = await client.get(f"{CHEMBL_API}/molecule/{mid}.json")
+                    mol = mr.json() if mr.status_code == 200 else {}
+                except Exception:
+                    mol = {}
+
+                name = (
+                    mol.get("pref_name")
+                    or mech.get("molecule_name")
+                    or mid
+                )
+                max_phase = mol.get("max_phase") or 0
+                year = mol.get("first_approval")
+
+                if max_phase >= 1:  # only include clinical/approved compounds
+                    if max_phase == 4:
+                        status = "FDA Approved"
+                    elif max_phase == 3:
+                        status = "Phase III"
+                    elif max_phase == 2:
+                        status = "Phase II"
+                    else:
+                        status = "Phase I"
+
+                    therapies.append({
+                        "name": name.title() if name == name.upper() else name,
+                        "mechanism": mech.get("mechanism_of_action", "").capitalize() or "Inhibitor",
+                        "approval_status": status,
+                        "year": int(year) if year else None,
+                    })
+
+        therapies.sort(key=lambda x: -({"FDA Approved": 4, "Phase III": 3, "Phase II": 2, "Phase I": 1}.get(x["approval_status"], 0)))
+        return therapies[:8]
+    except Exception as exc:
+        logger.warning(f"_fetch_existing_drugs failed: {exc}")
+        return []
+
+
+async def _fetch_key_papers(protein_name: str) -> list[str]:
+    """
+    Query Europe PMC for publications relevant to the target, sorted by citation count.
+    Returns a list of formatted citation strings like 'Author et al. YYYY Journal'.
+    """
+    try:
+        query = f'("{protein_name}" OR "{protein_name} inhibitor") AND (METHODS:"drug discovery" OR METHODS:"virtual screening" OR METHODS:"molecular docking" OR TITLE:"inhibitor")'
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(
+                "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+                params={
+                    "query": query,
+                    "format": "json",
+                    "pageSize": 8,
+                    "sort": "CITED",
+                    "resultType": "core",
+                },
+            )
+            r.raise_for_status()
+            results = r.json().get("resultList", {}).get("result", [])
+
+        papers: list[str] = []
+        for p in results:
+            authors = p.get("authorString", "")
+            year = p.get("pubYear", "")
+            journal = p.get("journalTitle", "") or p.get("journalAbbreviation", "")
+            volume = p.get("journalInfo", {}).get("volume", "") if isinstance(p.get("journalInfo"), dict) else ""
+            # Format as "Last et al. YEAR Journal VOL" (trim author list)
+            first_author = authors.split(",")[0].strip().split(" ")[-1] if authors else "Unknown"
+            citation = f"{first_author} et al. {year} {journal}"
+            if volume:
+                citation += f" {volume}"
+            if citation.strip():
+                papers.append(citation.strip())
+
+        return papers[:6]
+    except Exception as exc:
+        logger.warning(f"_fetch_key_papers failed: {exc}")
+        return []
+
+
 # ── LLM provider dispatch ──────────────────────────────────────────────────────
 
 _DEFAULT_MODELS: dict[str, str] = {
@@ -98,14 +208,32 @@ _PROVIDER_NAMES: dict[str, str] = {
 }
 
 
-def _build_prompt(protein_name: str, chembl_data: dict, pdb_ids: list[str], known_actives: int) -> str:
+def _build_prompt(
+    protein_name: str,
+    chembl_data: dict,
+    pdb_ids: list[str],
+    known_actives: int,
+    existing_drugs: list[dict],
+    key_papers: list[str],
+) -> str:
+    drugs_json = json.dumps(existing_drugs, indent=2) if existing_drugs else "None found in ChEMBL"
+    papers_text = "\n".join(f"  - {p}" for p in key_papers) if key_papers else "  None found"
     return f"""You are an expert medicinal chemist and computational biologist.
 Provide a structured literature review for the protein target: {protein_name}.
 
-Available data:
-- ChEMBL target info: {json.dumps(chembl_data, indent=2)[:2000]}
-- PDB structure IDs available: {pdb_ids}
+Available data retrieved from public databases:
+- ChEMBL target info: {json.dumps(chembl_data, indent=2)[:1500]}
+- PDB structure IDs: {pdb_ids}
 - Known ChEMBL actives (pChEMBL >= 6): {known_actives}
+- Clinical/approved drugs from ChEMBL mechanism table:
+{drugs_json}
+- Key publications from Europe PMC (sorted by citations):
+{papers_text}
+
+Instructions:
+1. Use the provided drugs list as the basis for "existing_therapies". Add or correct entries using your knowledge but keep factual names and years.
+2. Use the provided papers list as a starting point for "key_papers". Add highly cited papers from your knowledge if relevant.
+3. For existing_scaffolds, provide real SMILES of known active scaffolds if you know them.
 
 Respond ONLY with valid JSON matching this schema (no markdown fences):
 {{
@@ -131,6 +259,8 @@ async def _llm_synthesis(
     chembl_data: dict,
     pdb_ids: list[str],
     known_actives: int,
+    existing_drugs: list[dict],
+    key_papers: list[str],
     provider: LLMProvider,
     api_key: Optional[str],
     model: Optional[str],
@@ -138,7 +268,7 @@ async def _llm_synthesis(
     """Dispatch to the appropriate LLM provider and return parsed JSON."""
     provider_str = provider.value if hasattr(provider, "value") else str(provider)
     model = model or os.getenv("LLM_MODEL") or _DEFAULT_MODELS.get(provider_str, "")
-    prompt = _build_prompt(protein_name, chembl_data, pdb_ids, known_actives)
+    prompt = _build_prompt(protein_name, chembl_data, pdb_ids, known_actives, existing_drugs, key_papers)
 
     try:
         text = await _call_provider(provider_str, api_key, model, prompt)
@@ -148,7 +278,7 @@ async def _llm_synthesis(
             text = text.split("\n", 1)[1].rsplit("```", 1)[0]
         return json.loads(text)
     except Exception as e:
-        logger.warning(f"{provider_str} synthesis failed ({type(e).__name__}: {e}). Using heuristic fallback.")
+        logger.warning(f"{provider_str} synthesis failed ({type(e).__name__}: {e}). Using data fallback.")
         err = str(e).lower()
         if any(k in err for k in ("api_key", "authentication", "unauthorized", "invalid_api_key", "401")):
             key_label = _PROVIDER_NAMES.get(provider_str, f"{provider_str} API key")
@@ -156,7 +286,7 @@ async def _llm_synthesis(
                 f"{key_label} is missing or invalid. "
                 f"Provide a valid key to enable AI literature synthesis in real mode."
             ) from e
-        return _fallback_synthesis(protein_name, pdb_ids, known_actives)
+        return _fallback_synthesis(protein_name, pdb_ids, known_actives, existing_drugs, key_papers)
 
 
 async def _call_provider(provider: str, api_key: Optional[str], model: str, prompt: str) -> str:
@@ -223,33 +353,32 @@ async def _call_provider(provider: str, api_key: Optional[str], model: str, prom
 
 
 def _fallback_synthesis(
-    protein_name: str, pdb_ids: list[str], known_actives: int
+    protein_name: str,
+    pdb_ids: list[str],
+    known_actives: int,
+    existing_drugs: list[dict] | None = None,
+    key_papers: list[str] | None = None,
 ) -> dict:
     has_struct = bool(pdb_ids)
     method = "hybrid" if has_struct and known_actives > 50 else ("sbdd" if has_struct else "lbdd")
+
+    therapies = existing_drugs if existing_drugs else []
+
+    papers = key_papers if key_papers else []
+
     return {
         "description": (
             f"{protein_name} is a therapeutically relevant target implicated in multiple "
             "disease pathways. Structural and biochemical data indicate tractability for "
             "small-molecule modulation."
         ),
-        "existing_therapies": [
-            {
-                "name": "Example Inhibitor A",
-                "mechanism": "Competitive inhibitor",
-                "approval_status": "FDA Approved",
-                "year": 2018,
-            }
-        ],
+        "existing_therapies": therapies,
         "discovery_history": {
             "lbdd_done": known_actives > 20,
             "sbdd_done": has_struct,
             "hybrid_done": has_struct and known_actives > 50,
-            "key_papers": [
-                "Smith et al. 2021 J Med Chem",
-                "Jones et al. 2022 Nat Chem Biol",
-            ],
-            "existing_scaffolds": ["c1ccc(cc1)C(=O)N", "CC(=O)Nc1ccc(cc1)O"],
+            "key_papers": papers,
+            "existing_scaffolds": [],
         },
         "recommended_method": method,
         "recommendation_rationale": (
@@ -335,13 +464,23 @@ async def run_lit_review(
         pdb_ids = data["pdb_ids"]
         known_actives = data["known_actives"]
     else:
-        # Real mode: hit live APIs
+        # Real mode: fetch from all live APIs concurrently
+        import asyncio
         target_data = await _fetch_chembl_target(protein_name)
         chembl_id = target_data.get("target_chembl_id", "")
-        known_actives = await _count_chembl_actives(chembl_id) if chembl_id else 0
-        pdb_ids = await _fetch_pdb_ids(protein_name)
+
+        async def _zero(): return 0
+
+        (known_actives, pdb_ids, existing_drugs, key_papers) = await asyncio.gather(
+            _count_chembl_actives(chembl_id) if chembl_id else _zero(),
+            _fetch_pdb_ids(protein_name),
+            _fetch_existing_drugs(chembl_id),
+            _fetch_key_papers(protein_name),
+        )
+
         data = await _llm_synthesis(
             protein_name, target_data, pdb_ids, known_actives,
+            existing_drugs, key_papers,
             llm_provider, llm_api_key, llm_model,
         )
 
