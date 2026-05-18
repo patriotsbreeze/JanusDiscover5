@@ -234,55 +234,135 @@ def _calc_binding_center(pdb_text: str) -> list[float]:
     return arr.mean(axis=0).tolist()
 
 
+# ── AutoDock atom type tables ─────────────────────────────────────────────────
+
+# Element → AutoDock atom type (receptor, simplified)
+_AD_TYPE_RECEPTOR: dict[str, str] = {
+    "C": "C", "CA": "C", "N": "NA", "O": "OA", "S": "SA",
+    "H": "HD", "P": "P", "F": "F", "CL": "Cl", "BR": "Br",
+    "I": "I", "FE": "Fe", "ZN": "Zn", "MG": "Mg", "CA": "Ca",
+    "MN": "Mn", "CU": "Cu", "K": "K", "NA": "Na",
+}
+
+# Element → AutoDock atom type (ligand)
+_AD_TYPE_LIGAND: dict[str, str] = {
+    "C": "C", "N": "NA", "O": "OA", "S": "SA", "H": "HD",
+    "P": "P", "F": "F", "CL": "Cl", "BR": "Br", "I": "I",
+}
+
+
+def _element_from_pdb_line(line: str) -> str:
+    """Extract element symbol from PDB ATOM line."""
+    el = line[76:78].strip().upper() if len(line) > 76 else ""
+    if not el:
+        atom_name = line[12:16].strip().lstrip("0123456789")
+        el = "".join(c for c in atom_name if c.isalpha()).upper()[:2]
+    return el
+
+
+def _pdb_to_pdbqt_python(pdb_text: str) -> str:
+    """
+    Pure-Python PDB → PDBQT for receptor.
+    Keeps only ATOM records (protein heavy atoms), assigns AutoDock types.
+    No external dependencies.
+    """
+    out: list[str] = []
+    for line in pdb_text.splitlines():
+        if not line.startswith("ATOM"):
+            continue
+        el = _element_from_pdb_line(line)
+        ad = _AD_TYPE_RECEPTOR.get(el, el[:1] or "C")
+        body = line[:66].ljust(66)
+        out.append(f"{body}  +0.000 {ad}")
+    out.append("END")
+    return "\n".join(out)
+
+
 def _pdb_to_pdbqt_receptor(pdb_path: str, pdbqt_path: str) -> None:
     """
     Convert receptor PDB → PDBQT.
-    Tries (in order):
-      1. obabel CLI   (most reliable, handles atom types properly)
-      2. openbabel Python bindings
-    Raises RuntimeError with install instructions if neither is available.
+    Priority: obabel CLI → Python openbabel → pure-Python fallback.
+    The pure-Python fallback always works (no extra deps); obabel gives better
+    hydrogen handling and formal charges.
     """
     import subprocess
 
-    # 1. Try obabel CLI
+    # 1. obabel CLI (best quality)
     try:
         result = subprocess.run(
             ["obabel", pdb_path, "-O", pdbqt_path, "-xr"],
             capture_output=True, timeout=120,
         )
         if result.returncode == 0 and Path(pdbqt_path).exists():
+            logger.info("[SBDD] Receptor PDBQT via obabel CLI")
             return
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
-    # 2. Try Python openbabel
+    # 2. Python openbabel bindings
     try:
         from openbabel import openbabel as ob
         conv = ob.OBConversion()
         conv.SetInAndOutFormats("pdb", "pdbqt")
-        mol = ob.OBMol()
-        conv.ReadFile(mol, pdb_path)
-        mol.AddHydrogens()
-        conv.WriteFile(mol, pdbqt_path)
+        obmol = ob.OBMol()
+        conv.ReadFile(obmol, pdb_path)
+        obmol.AddHydrogens()
+        conv.WriteFile(obmol, pdbqt_path)
         if Path(pdbqt_path).exists():
+            logger.info("[SBDD] Receptor PDBQT via Python openbabel")
             return
     except ImportError:
         pass
 
-    raise RuntimeError(
-        "Receptor PDBQT preparation requires OpenBabel. "
-        "Install it with: brew install open-babel (macOS), "
-        "apt-get install openbabel (Linux), or conda install -c conda-forge openbabel. "
-        "Then re-run in real mode."
-    )
+    # 3. Pure-Python fallback — always works
+    logger.info("[SBDD] Receptor PDBQT via built-in fallback (install obabel for better results)")
+    pdb_text = Path(pdb_path).read_text()
+    Path(pdbqt_path).write_text(_pdb_to_pdbqt_python(pdb_text))
+
+
+def _rdkit_mol_to_pdbqt(mol) -> str:
+    """
+    Pure-Python RDKit mol → PDBQT (rigid, no torsion tree).
+    Assigns AutoDock atom types from element + aromaticity.
+    No external dependencies — used as the final fallback.
+    """
+    from rdkit.Chem import rdchem
+    conf = mol.GetConformer()
+    lines = ["REMARK  JanusDiscover ligand", "ROOT"]
+    atom_idx = 0
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() == 1:  # skip explicit H (Vina adds them)
+            continue
+        atom_idx += 1
+        pos = conf.GetAtomPosition(atom.GetIdx())
+        sym = atom.GetSymbol().upper()
+        if sym == "C":
+            ad = "A" if atom.GetIsAromatic() else "C"
+        elif sym == "N":
+            ad = "NA"
+        elif sym == "O":
+            ad = "OA"
+        elif sym == "S":
+            ad = "SA"
+        else:
+            ad = _AD_TYPE_LIGAND.get(sym, sym[:1] or "C")
+        name = f"{atom.GetSymbol()}{atom_idx}"[:4].ljust(4)
+        lines.append(
+            f"ATOM  {atom_idx:5d} {name} LIG     1    "
+            f"{pos.x:8.3f}{pos.y:8.3f}{pos.z:8.3f}"
+            f"  1.00  0.00    +0.000 {ad}"
+        )
+    lines += ["ENDROOT", "TORSDOF 0"]
+    return "\n".join(lines)
 
 
 def _mol_to_pdbqt(mol) -> str | None:
     """
     Convert an RDKit Mol (with 3D coords) to a PDBQT string.
-    Uses meeko if available; falls back to a minimal PDBQT writer.
+    Priority: meeko → obabel subprocess → pure-Python fallback.
+    The pure-Python fallback always succeeds if the mol has a conformer.
     """
-    # Try meeko (preferred)
+    # 1. meeko (best: handles torsion tree and charge assignment)
     try:
         from meeko import MoleculePreparation
         from meeko import PDBQTWriterLegacy
@@ -295,27 +375,28 @@ def _mol_to_pdbqt(mol) -> str | None:
     except ImportError:
         pass
     except Exception as e:
-        logger.debug(f"meeko preparation failed: {e}")
+        logger.debug(f"meeko failed: {e}")
 
-    # Minimal fallback: write a PDBQT from the 3D mol
-    # Uses RDKit to write PDB then converts to minimal PDBQT
+    # 2. obabel subprocess
     try:
         from rdkit.Chem import rdmolfiles
-        import subprocess, tempfile as _tmp
-        tmp = Path(_tmp.mkdtemp())
-        pdb_path = str(tmp / "lig.pdb")
-        pdbqt_path = str(tmp / "lig.pdbqt")
-        rdmolfiles.MolToPDBFile(mol, pdb_path)
-        result = subprocess.run(
-            ["obabel", pdb_path, "-O", pdbqt_path],
-            capture_output=True, timeout=30,
-        )
-        if result.returncode == 0 and Path(pdbqt_path).exists():
-            return Path(pdbqt_path).read_text()
+        import subprocess as _sp, tempfile as _tmp
+        _t = Path(_tmp.mkdtemp())
+        pdb_p = str(_t / "lig.pdb")
+        pdbqt_p = str(_t / "lig.pdbqt")
+        rdmolfiles.MolToPDBFile(mol, pdb_p)
+        r = _sp.run(["obabel", pdb_p, "-O", pdbqt_p], capture_output=True, timeout=30)
+        if r.returncode == 0 and Path(pdbqt_p).exists():
+            return Path(pdbqt_p).read_text()
     except Exception as e:
-        logger.debug(f"obabel ligand conversion failed: {e}")
+        logger.debug(f"obabel ligand fallback failed: {e}")
 
-    return None
+    # 3. Pure-Python fallback — always works
+    try:
+        return _rdkit_mol_to_pdbqt(mol)
+    except Exception as e:
+        logger.debug(f"Pure-Python PDBQT writer failed: {e}")
+        return None
 
 
 async def _prepare_receptor(pdb_id: str, protein_name: str) -> tuple[str, list[float]]:
