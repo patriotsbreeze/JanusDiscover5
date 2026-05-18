@@ -35,8 +35,10 @@ MDAnalysis==2.7.0
 requests==2.32.3
 chembl-webresource-client==0.10.9
 
-# LLM / Claude API
+# LLM providers (Anthropic, OpenAI-compatible: OpenAI, DeepSeek, Ollama, Google Gemini)
 anthropic==0.42.0
+openai==1.57.4
+google-generativeai==0.8.3
 
 # LaTeX / PDF generation
 jinja2==3.1.4

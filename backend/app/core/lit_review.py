@@ -20,6 +20,7 @@ from ..models.schemas import (
     DiscoveryHistory,
     DiscoveryMethod,
     LitReviewResult,
+    LLMProvider,
     RunMode,
     TherapyEntry,
 )
@@ -78,25 +79,27 @@ async def _fetch_pdb_ids(protein_name: str) -> list[str]:
         return []
 
 
-# ── Claude synthesis ───────────────────────────────────────────────────────────
+# ── LLM provider dispatch ──────────────────────────────────────────────────────
 
-async def _claude_synthesis(
-    protein_name: str,
-    chembl_data: dict,
-    pdb_ids: list[str],
-    known_actives: int,
-) -> dict:
-    """Ask Claude to produce a structured lit-review + recommendation."""
-    try:
-        import anthropic
+_DEFAULT_MODELS: dict[str, str] = {
+    "anthropic": "claude-opus-4-7",
+    "openai":    "gpt-4o",
+    "google":    "gemini-2.0-flash",
+    "deepseek":  "deepseek-chat",
+    "ollama":    "llama3.2",
+}
 
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set")
+_PROVIDER_NAMES: dict[str, str] = {
+    "anthropic": "Anthropic API key",
+    "openai":    "OpenAI API key",
+    "google":    "Google Gemini API key",
+    "deepseek":  "DeepSeek API key",
+    "ollama":    "",  # no key needed
+}
 
-        client = anthropic.Anthropic(api_key=api_key)
 
-        prompt = f"""You are an expert medicinal chemist and computational biologist.
+def _build_prompt(protein_name: str, chembl_data: dict, pdb_ids: list[str], known_actives: int) -> str:
+    return f"""You are an expert medicinal chemist and computational biologist.
 Provide a structured literature review for the protein target: {protein_name}.
 
 Available data:
@@ -122,23 +125,101 @@ Respond ONLY with valid JSON matching this schema (no markdown fences):
 }}
 """
 
-        model = os.getenv("LLM_MODEL", "claude-opus-4-7")
-        message = client.messages.create(
-            model=model,
-            max_tokens=1500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return json.loads(message.content[0].text)
 
+async def _llm_synthesis(
+    protein_name: str,
+    chembl_data: dict,
+    pdb_ids: list[str],
+    known_actives: int,
+    provider: LLMProvider,
+    api_key: Optional[str],
+    model: Optional[str],
+) -> dict:
+    """Dispatch to the appropriate LLM provider and return parsed JSON."""
+    provider_str = provider.value if hasattr(provider, "value") else str(provider)
+    model = model or os.getenv("LLM_MODEL") or _DEFAULT_MODELS.get(provider_str, "")
+    prompt = _build_prompt(protein_name, chembl_data, pdb_ids, known_actives)
+
+    try:
+        text = await _call_provider(provider_str, api_key, model, prompt)
+        # Strip any accidental markdown fences
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0]
+        return json.loads(text)
     except Exception as e:
-        logger.warning(f"Claude synthesis failed ({type(e).__name__}: {e}). Using heuristic fallback.")
-        # Re-raise in real mode if it was an auth/key problem so the caller can inform the user
-        if "api_key" in str(e).lower() or "authentication" in str(e).lower():
+        logger.warning(f"{provider_str} synthesis failed ({type(e).__name__}: {e}). Using heuristic fallback.")
+        err = str(e).lower()
+        if any(k in err for k in ("api_key", "authentication", "unauthorized", "invalid_api_key", "401")):
+            key_label = _PROVIDER_NAMES.get(provider_str, f"{provider_str} API key")
             raise RuntimeError(
-                "Anthropic API key is missing or invalid. "
-                "Set ANTHROPIC_API_KEY to enable AI literature synthesis in real mode."
+                f"{key_label} is missing or invalid. "
+                f"Provide a valid key to enable AI literature synthesis in real mode."
             ) from e
         return _fallback_synthesis(protein_name, pdb_ids, known_actives)
+
+
+async def _call_provider(provider: str, api_key: Optional[str], model: str, prompt: str) -> str:
+    if provider == "anthropic":
+        import anthropic
+        key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        if not key:
+            raise ValueError("ANTHROPIC_API_KEY not set")
+        client = anthropic.Anthropic(api_key=key)
+        msg = client.messages.create(
+            model=model, max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return msg.content[0].text
+
+    elif provider == "openai":
+        from openai import OpenAI
+        key = api_key or os.getenv("OPENAI_API_KEY", "")
+        if not key:
+            raise ValueError("OPENAI_API_KEY not set")
+        client = OpenAI(api_key=key)
+        resp = client.chat.completions.create(
+            model=model, max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.choices[0].message.content
+
+    elif provider == "google":
+        import google.generativeai as genai
+        key = api_key or os.getenv("GOOGLE_API_KEY", "")
+        if not key:
+            raise ValueError("GOOGLE_API_KEY not set")
+        genai.configure(api_key=key)
+        m = genai.GenerativeModel(model)
+        resp = m.generate_content(prompt)
+        return resp.text
+
+    elif provider == "deepseek":
+        # DeepSeek uses an OpenAI-compatible API
+        from openai import OpenAI
+        key = api_key or os.getenv("DEEPSEEK_API_KEY", "")
+        if not key:
+            raise ValueError("DEEPSEEK_API_KEY not set")
+        client = OpenAI(api_key=key, base_url="https://api.deepseek.com/v1")
+        resp = client.chat.completions.create(
+            model=model, max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.choices[0].message.content
+
+    elif provider == "ollama":
+        # Ollama exposes an OpenAI-compatible endpoint locally
+        from openai import OpenAI
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        client = OpenAI(api_key="ollama", base_url=base_url)
+        resp = client.chat.completions.create(
+            model=model, max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.choices[0].message.content
+
+    else:
+        raise ValueError(f"Unknown LLM provider: {provider}")
 
 
 def _fallback_synthesis(
@@ -242,6 +323,9 @@ async def run_lit_review(
     protein_name: str,
     run_mode: RunMode,
     session_id: Optional[str] = None,
+    llm_provider: LLMProvider = LLMProvider.anthropic,
+    llm_api_key: Optional[str] = None,
+    llm_model: Optional[str] = None,
 ) -> LitReviewResult:
     if session_id is None:
         session_id = str(uuid.uuid4())
@@ -256,7 +340,10 @@ async def run_lit_review(
         chembl_id = target_data.get("target_chembl_id", "")
         known_actives = await _count_chembl_actives(chembl_id) if chembl_id else 0
         pdb_ids = await _fetch_pdb_ids(protein_name)
-        data = await _claude_synthesis(protein_name, target_data, pdb_ids, known_actives)
+        data = await _llm_synthesis(
+            protein_name, target_data, pdb_ids, known_actives,
+            llm_provider, llm_api_key, llm_model,
+        )
 
     therapies = [TherapyEntry(**t) for t in data["existing_therapies"]]
     history = DiscoveryHistory(**data["discovery_history"])

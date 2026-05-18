@@ -12,6 +12,14 @@ class RunMode(str, Enum):
     real = "real"
 
 
+class LLMProvider(str, Enum):
+    anthropic = "anthropic"
+    openai = "openai"
+    google = "google"
+    deepseek = "deepseek"
+    ollama = "ollama"
+
+
 class Dataset(str, Enum):
     fda_approved = "fda_approved"
     zinc_250k = "zinc_250k"
@@ -35,6 +43,9 @@ class MDDuration(BaseModel):
 class LitReviewRequest(BaseModel):
     protein_name: str = Field(..., min_length=2)
     run_mode: RunMode = RunMode.mock
+    llm_provider: LLMProvider = LLMProvider.anthropic
+    llm_api_key: Optional[str] = None
+    llm_model: Optional[str] = None
 
 
 class ApprovalRequest(BaseModel):

@@ -64,7 +64,12 @@ async def start_lit_review(req: LitReviewRequest, background_tasks: BackgroundTa
 async def _run_lit_review(session_id: str, req: LitReviewRequest):
     try:
         update_session(session_id, progress_pct=20, progress_msg="Querying ChEMBL and PDB…")
-        result = await lr_module.run_lit_review(req.protein_name, req.run_mode, session_id)
+        result = await lr_module.run_lit_review(
+            req.protein_name, req.run_mode, session_id,
+            llm_provider=req.llm_provider,
+            llm_api_key=req.llm_api_key,
+            llm_model=req.llm_model,
+        )
         update_session(
             session_id,
             lit_review=result.model_dump(),

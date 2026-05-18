@@ -4,9 +4,14 @@ const BASE = '/api'
 
 export const api = axios.create({ baseURL: BASE })
 
+export type LLMProvider = 'anthropic' | 'openai' | 'google' | 'deepseek' | 'ollama'
+
 export interface LitReviewRequest {
   protein_name: string
   run_mode: 'mock' | 'real'
+  llm_provider?: LLMProvider
+  llm_api_key?: string
+  llm_model?: string
 }
 
 export interface ApprovalRequest {

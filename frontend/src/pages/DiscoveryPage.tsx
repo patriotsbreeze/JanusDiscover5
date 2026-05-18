@@ -6,8 +6,9 @@ import {
 } from 'lucide-react'
 import {
   startLitReview, submitApproval, submitMD,
-  ApprovalRequest, MDRequest,
+  ApprovalRequest, MDRequest, LLMProvider,
 } from '../api'
+import { LLMProviderSelector } from '../components/LLMProviderSelector'
 import { usePolling } from '../hooks/usePolling'
 import { ProgressBar } from '../components/ProgressBar'
 import { LitReviewPanel } from '../components/LitReviewPanel'
@@ -38,6 +39,9 @@ export function DiscoveryPage() {
   const [step, setStep] = useState<Step>('input')
   const [protein, setProtein] = useState('')
   const [runMode, setRunMode] = useState<'mock' | 'real'>('mock')
+  const [llmProvider, setLlmProvider] = useState<LLMProvider>('anthropic')
+  const [llmApiKey, setLlmApiKey] = useState('')
+  const [llmModel, setLlmModel] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -49,7 +53,13 @@ export function DiscoveryPage() {
     setLoading(true)
     setLocalError(null)
     try {
-      const { data } = await startLitReview({ protein_name: protein.trim(), run_mode: runMode })
+      const { data } = await startLitReview({
+        protein_name: protein.trim(),
+        run_mode: runMode,
+        llm_provider: llmProvider,
+        llm_api_key: llmApiKey || undefined,
+        llm_model: llmModel || undefined,
+      })
       setSessionId(data.session_id)
       setStep('lit_review')
     } catch (e: any) {
@@ -187,6 +197,13 @@ export function DiscoveryPage() {
                     ))}
                   </div>
                 </div>
+
+                {runMode === 'real' && (
+                  <LLMProviderSelector
+                    disabled={loading}
+                    onChange={(p, k, m) => { setLlmProvider(p); setLlmApiKey(k); setLlmModel(m) }}
+                  />
+                )}
 
                 {localError && (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-red-950/30 border border-red-900 text-red-300 text-sm">
