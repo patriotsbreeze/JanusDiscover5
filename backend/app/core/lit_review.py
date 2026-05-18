@@ -79,92 +79,180 @@ async def _fetch_pdb_ids(protein_name: str) -> list[str]:
         return []
 
 
+_PHASE_RANK = {"FDA Approved": 4, "EMA Approved": 4, "Phase III": 3, "Phase II": 2, "Phase I": 1}
+
+
+def _phase_status(max_phase) -> Optional[str]:
+    try:
+        mp = int(max_phase)
+    except (TypeError, ValueError):
+        return None
+    if mp == 4: return "FDA Approved"
+    if mp == 3: return "Phase III"
+    if mp == 2: return "Phase II"
+    if mp == 1: return "Phase I"
+    return None
+
+
+def _nice_name(raw: str) -> str:
+    """Title-case only if the string is ALL CAPS; leave mixed-case alone."""
+    if raw and raw == raw.upper():
+        return raw.title()
+    return raw or ""
+
+
+async def _enrich_molecules(mids_mechs: dict[str, dict]) -> list[dict]:
+    """Look up molecule details for a set of ChEMBL IDs and return TherapyEntry dicts."""
+    therapies: list[dict] = []
+    async with httpx.AsyncClient(timeout=25) as client:
+        for mid, mech in list(mids_mechs.items())[:15]:
+            try:
+                mr = await client.get(f"{CHEMBL_API}/molecule/{mid}.json")
+                mol = mr.json() if mr.status_code == 200 else {}
+            except Exception:
+                mol = {}
+
+            name = _nice_name(mol.get("pref_name") or mech.get("molecule_name") or mid)
+            status = _phase_status(mol.get("max_phase") or mech.get("max_phase"))
+            if status is None:
+                continue  # skip pre-clinical / unannotated
+
+            year = mol.get("first_approval")
+            moa = (mech.get("mechanism_of_action") or "Active compound").capitalize()
+            therapies.append({
+                "name": name,
+                "mechanism": moa,
+                "approval_status": status,
+                "year": int(year) if year else None,
+            })
+
+    therapies.sort(key=lambda x: -_PHASE_RANK.get(x["approval_status"], 0))
+    return therapies[:10]
+
+
 async def _fetch_existing_drugs(chembl_target_id: str) -> list[dict]:
     """
-    Query ChEMBL mechanism table for drugs/compounds that act on this target,
-    then enrich with molecule name + max_phase from the molecule endpoint.
-    Returns list of dicts suitable for TherapyEntry.
+    Two-pass lookup for clinical compounds:
+      1. ChEMBL mechanism table (explicitly annotated drug-target pairs)
+      2. If sparse, also scan the activity table for any max_phase >= 1 molecule
+         with pChEMBL >= 6, so targets like SARS-CoV-2 Mpro don't show empty.
     """
     if not chembl_target_id:
         return []
     try:
+        import asyncio as _aio
+
+        # Pass 1: mechanism table
         async with httpx.AsyncClient(timeout=20) as client:
             r = await client.get(
                 f"{CHEMBL_API}/mechanism.json",
-                params={"target_chembl_id": chembl_target_id, "limit": 20},
+                params={"target_chembl_id": chembl_target_id, "limit": 25},
             )
             r.raise_for_status()
             mechs = r.json().get("mechanisms", [])
 
-        if not mechs:
-            return []
-
-        # Deduplicate by molecule_chembl_id, keep highest-phase unique molecule
         seen: dict[str, dict] = {}
         for m in mechs:
             mid = m.get("molecule_chembl_id", "")
             if mid and mid not in seen:
                 seen[mid] = m
 
-        # Enrich with molecule details (name, max_phase, first_approval)
-        therapies: list[dict] = []
-        async with httpx.AsyncClient(timeout=20) as client:
-            for mid, mech in list(seen.items())[:10]:
-                try:
-                    mr = await client.get(f"{CHEMBL_API}/molecule/{mid}.json")
-                    mol = mr.json() if mr.status_code == 200 else {}
-                except Exception:
-                    mol = {}
-
-                name = (
-                    mol.get("pref_name")
-                    or mech.get("molecule_name")
-                    or mid
+        # Pass 2: activity table fallback when mechanism table is sparse
+        if len(seen) < 3:
+            async with httpx.AsyncClient(timeout=20) as client:
+                r2 = await client.get(
+                    f"{CHEMBL_API}/activity.json",
+                    params={
+                        "target_chembl_id": chembl_target_id,
+                        "molecule_max_phase__gte": "1",
+                        "pchembl_value__gte": "5.0",
+                        "limit": 50,
+                    },
                 )
-                max_phase = mol.get("max_phase") or 0
-                year = mol.get("first_approval")
+                activities = r2.json().get("activities", []) if r2.status_code == 200 else []
 
-                if max_phase >= 1:  # only include clinical/approved compounds
-                    if max_phase == 4:
-                        status = "FDA Approved"
-                    elif max_phase == 3:
-                        status = "Phase III"
-                    elif max_phase == 2:
-                        status = "Phase II"
-                    else:
-                        status = "Phase I"
+            for act in activities:
+                mid = act.get("molecule_chembl_id", "")
+                if mid and mid not in seen:
+                    seen[mid] = {
+                        "molecule_chembl_id": mid,
+                        "molecule_name": act.get("molecule_pref_name") or "",
+                        "mechanism_of_action": "",
+                        "max_phase": act.get("molecule_max_phase"),
+                    }
 
-                    therapies.append({
-                        "name": name.title() if name == name.upper() else name,
-                        "mechanism": mech.get("mechanism_of_action", "").capitalize() or "Inhibitor",
-                        "approval_status": status,
-                        "year": int(year) if year else None,
-                    })
+        if not seen:
+            return []
 
-        therapies.sort(key=lambda x: -({"FDA Approved": 4, "Phase III": 3, "Phase II": 2, "Phase I": 1}.get(x["approval_status"], 0)))
-        return therapies[:8]
+        return await _enrich_molecules(seen)
+
     except Exception as exc:
         logger.warning(f"_fetch_existing_drugs failed: {exc}")
         return []
 
 
-async def _fetch_key_papers(protein_name: str) -> list[str]:
-    """
-    Query Europe PMC for publications relevant to the target, sorted by citation count.
-    Returns a list of formatted citation strings like 'Author et al. YYYY Journal'.
-    """
+def _format_citation(authors: str, year: str, journal: str, volume: str = "") -> str:
+    last = authors.split(",")[0].strip().split(" ")[-1] if authors else "Unknown"
+    c = f"{last} et al. {year} {journal}"
+    return (c + f" {volume}").strip() if volume else c.strip()
+
+
+async def _fetch_pubmed_papers(protein_name: str) -> list[str]:
+    """Query PubMed via NCBI E-utilities (no key needed for basic use)."""
     try:
-        query = f'("{protein_name}" OR "{protein_name} inhibitor") AND (METHODS:"drug discovery" OR METHODS:"virtual screening" OR METHODS:"molecular docking" OR TITLE:"inhibitor")'
+        base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+        query = f'("{protein_name}"[Title/Abstract]) AND (inhibitor OR "drug discovery" OR "virtual screening" OR "molecular docking")'
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Search
+            sr = await client.get(f"{base}/esearch.fcgi", params={
+                "db": "pubmed", "term": query,
+                "sort": "relevance", "retmax": "10", "retmode": "json",
+            })
+            ids = sr.json().get("esearchresult", {}).get("idlist", []) if sr.status_code == 200 else []
+            if not ids:
+                return []
+
+            # Fetch summaries
+            sumr = await client.get(f"{base}/esummary.fcgi", params={
+                "db": "pubmed", "id": ",".join(ids), "retmode": "json",
+            })
+            summaries = sumr.json().get("result", {}) if sumr.status_code == 200 else {}
+
+        papers: list[str] = []
+        for uid in ids:
+            s = summaries.get(uid, {})
+            if not isinstance(s, dict):
+                continue
+            authors_list = s.get("authors", [])
+            first_author = authors_list[0].get("name", "").split(" ")[-1] if authors_list else "Unknown"
+            year = s.get("pubdate", "")[:4]
+            journal = s.get("source", "")
+            volume = s.get("volume", "")
+            c = f"{first_author} et al. {year} {journal}"
+            if volume:
+                c += f" {volume}"
+            if c.strip():
+                papers.append(c.strip())
+
+        return papers
+    except Exception as exc:
+        logger.warning(f"_fetch_pubmed_papers failed: {exc}")
+        return []
+
+
+async def _fetch_europepmc_papers(protein_name: str) -> list[str]:
+    """Query Europe PMC sorted by citation count."""
+    try:
+        query = (
+            f'("{protein_name}" OR "{protein_name} inhibitor") AND '
+            f'(METHODS:"drug discovery" OR METHODS:"virtual screening" OR '
+            f'METHODS:"molecular docking" OR TITLE:"inhibitor")'
+        )
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(
                 "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
-                params={
-                    "query": query,
-                    "format": "json",
-                    "pageSize": 8,
-                    "sort": "CITED",
-                    "resultType": "core",
-                },
+                params={"query": query, "format": "json", "pageSize": "10",
+                        "sort": "CITED", "resultType": "core"},
             )
             r.raise_for_status()
             results = r.json().get("resultList", {}).get("result", [])
@@ -175,18 +263,37 @@ async def _fetch_key_papers(protein_name: str) -> list[str]:
             year = p.get("pubYear", "")
             journal = p.get("journalTitle", "") or p.get("journalAbbreviation", "")
             volume = p.get("journalInfo", {}).get("volume", "") if isinstance(p.get("journalInfo"), dict) else ""
-            # Format as "Last et al. YEAR Journal VOL" (trim author list)
-            first_author = authors.split(",")[0].strip().split(" ")[-1] if authors else "Unknown"
-            citation = f"{first_author} et al. {year} {journal}"
-            if volume:
-                citation += f" {volume}"
-            if citation.strip():
-                papers.append(citation.strip())
+            c = _format_citation(authors, year, journal, volume)
+            if c:
+                papers.append(c)
 
-        return papers[:6]
+        return papers
     except Exception as exc:
-        logger.warning(f"_fetch_key_papers failed: {exc}")
+        logger.warning(f"_fetch_europepmc_papers failed: {exc}")
         return []
+
+
+async def _fetch_key_papers(protein_name: str) -> list[str]:
+    """
+    Query PubMed AND Europe PMC concurrently, merge, deduplicate, return top 10.
+    Deduplication is by first-author + year (close enough to avoid exact-match issues).
+    """
+    import asyncio as _aio
+    pubmed, epmc = await _aio.gather(
+        _fetch_pubmed_papers(protein_name),
+        _fetch_europepmc_papers(protein_name),
+    )
+
+    seen_keys: set[str] = set()
+    merged: list[str] = []
+    for paper in pubmed + epmc:
+        # key = first two words (author + year) — good-enough dedup
+        key = " ".join(paper.split()[:2]).lower()
+        if key not in seen_keys:
+            seen_keys.add(key)
+            merged.append(paper)
+
+    return merged[:10]
 
 
 # ── LLM provider dispatch ──────────────────────────────────────────────────────
@@ -227,7 +334,7 @@ Available data retrieved from public databases:
 - Known ChEMBL actives (pChEMBL >= 6): {known_actives}
 - Clinical/approved drugs from ChEMBL mechanism table:
 {drugs_json}
-- Key publications from Europe PMC (sorted by citations):
+- Key publications from PubMed + Europe PMC (merged, sorted by relevance/citations):
 {papers_text}
 
 Instructions:
