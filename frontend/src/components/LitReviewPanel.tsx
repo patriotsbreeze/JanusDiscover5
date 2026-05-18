@@ -1,12 +1,15 @@
-import { motion } from 'framer-motion'
-import { BookOpen, CheckCircle2, Circle, ExternalLink, Pill, TestTube } from 'lucide-react'
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { BookOpen, CheckCircle2, ChevronDown, Circle, Pill, TestTube } from 'lucide-react'
 import { LitReviewResult } from '../api'
 
 interface Props { result: LitReviewResult }
 
+const COLLAPSE_AT = 5
+
 const methodLabels: Record<string, string> = {
-  lbdd: 'Ligand-Based (LBDD)',
-  sbdd: 'Structure-Based (SBDD)',
+  lbdd:   'Ligand-Based (LBDD)',
+  sbdd:   'Structure-Based (SBDD)',
   hybrid: 'Hybrid LBDD + SBDD',
 }
 
@@ -16,10 +19,54 @@ const methodColors: Record<string, string> = {
   hybrid: 'bg-purple-900/40 text-purple-300 border-purple-800',
 }
 
-const statusColors: Record<string, string> = {
-  'FDA Approved':   'bg-green-900/40 text-green-300 border-green-800',
-  'Clinical Trial': 'bg-yellow-900/40 text-yellow-300 border-yellow-800',
-  'Preclinical':    'bg-orange-900/40 text-orange-300 border-orange-800',
+function statusColor(s: string) {
+  if (s === 'FDA Approved' || s === 'EMA Approved' || s === 'Approved') return 'bg-green-900/40 text-green-300 border-green-800'
+  if (s.startsWith('Phase III')) return 'bg-teal-900/40 text-teal-300 border-teal-800'
+  if (s.startsWith('Phase II'))  return 'bg-yellow-900/40 text-yellow-300 border-yellow-800'
+  if (s.startsWith('Phase I'))   return 'bg-orange-900/40 text-orange-300 border-orange-800'
+  return 'bg-gray-800/60 text-gray-400 border-gray-700'
+}
+
+function ShowMoreList<T>({
+  items,
+  empty,
+  renderItem,
+}: {
+  items: T[]
+  empty: React.ReactNode
+  renderItem: (item: T, index: number) => React.ReactNode
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? items : items.slice(0, COLLAPSE_AT)
+  const hidden = items.length - COLLAPSE_AT
+
+  if (items.length === 0) return <>{empty}</>
+
+  return (
+    <div>
+      <div className="space-y-2">
+        {visible.map((item, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04 }}
+          >
+            {renderItem(item, i)}
+          </motion.div>
+        ))}
+      </div>
+      {items.length > COLLAPSE_AT && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          {expanded ? 'Show less' : `Show ${hidden} more`}
+        </button>
+      )}
+    </div>
+  )
 }
 
 export function LitReviewPanel({ result }: Props) {
@@ -78,17 +125,26 @@ export function LitReviewPanel({ result }: Props) {
 
       {/* Existing therapies */}
       <div className="card">
-        <div className="flex items-center gap-2 mb-4">
-          <Pill size={16} className="text-janus-400" />
-          <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">
-            Existing Therapies
-          </h4>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Pill size={16} className="text-janus-400" />
+            <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Existing Therapies</h4>
+          </div>
+          {result.existing_therapies.length > 0 && (
+            <span className="text-xs text-gray-600">{result.existing_therapies.length} found</span>
+          )}
         </div>
-        <div className="space-y-2">
-          {result.existing_therapies.map((t, i) => {
-            const sc = statusColors[t.approval_status] ?? statusColors['Preclinical']
+        <ShowMoreList
+          items={result.existing_therapies}
+          empty={
+            <p className="text-gray-600 text-sm italic">
+              No clinical compounds found in ChEMBL for this target.
+            </p>
+          }
+          renderItem={(t, i) => {
+            const sc = statusColor(t.approval_status)
             return (
-              <div key={i} className="flex items-start justify-between gap-4 p-3 rounded-xl bg-gray-800/40 border border-gray-800">
+              <div className="flex items-start justify-between gap-4 p-3 rounded-xl bg-gray-800/40 border border-gray-800">
                 <div>
                   <span className="font-medium text-white text-sm">{t.name}</span>
                   <p className="text-gray-500 text-xs mt-0.5">{t.mechanism}</p>
@@ -99,24 +155,35 @@ export function LitReviewPanel({ result }: Props) {
                 </div>
               </div>
             )
-          })}
-        </div>
+          }}
+        />
       </div>
 
       {/* Key papers */}
       <div className="card">
-        <div className="flex items-center gap-2 mb-3">
-          <BookOpen size={16} className="text-janus-400" />
-          <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Key Literature</h4>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <BookOpen size={16} className="text-janus-400" />
+            <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Key Literature</h4>
+          </div>
+          {result.discovery_history.key_papers.length > 0 && (
+            <span className="text-xs text-gray-600">{result.discovery_history.key_papers.length} papers</span>
+          )}
         </div>
-        <ul className="space-y-1.5">
-          {result.discovery_history.key_papers.map((p, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
-              <span className="text-gray-600 mt-0.5 flex-shrink-0">{i + 1}.</span>
-              {p}
+        <ShowMoreList
+          items={result.discovery_history.key_papers}
+          empty={
+            <p className="text-gray-600 text-sm italic">
+              No publications found in Europe PMC for this target.
+            </p>
+          }
+          renderItem={(p, i) => (
+            <li className="flex items-start gap-2.5 text-sm text-gray-400 list-none">
+              <span className="text-gray-600 mt-0.5 flex-shrink-0 w-5 text-right">{i + 1}.</span>
+              <span>{p}</span>
             </li>
-          ))}
-        </ul>
+          )}
+        />
       </div>
 
       {/* Recommendation */}
