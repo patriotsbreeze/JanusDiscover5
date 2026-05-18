@@ -151,7 +151,7 @@ async def run_sbdd(
             "Try LBDD or Hybrid mode, or supply a custom PDB file."
         )
 
-    receptor_path = await _prepare_receptor(pdb_id, protein_name)
+    receptor_pdbqt, binding_center = await _prepare_receptor(pdb_id, protein_name)
     ligand_smiles_list = _load_dataset(dataset)
     if not ligand_smiles_list:
         raise RuntimeError(f"Dataset '{dataset}' returned zero valid SMILES.")
@@ -159,7 +159,7 @@ async def run_sbdd(
     scores_list = []
     n_failed = 0
     for i, smi in enumerate(ligand_smiles_list[:500]):  # limit for demo
-        score = await _dock_ligand(smi, receptor_path, i)
+        score = await _dock_ligand(smi, receptor_pdbqt, binding_center, i)
         if score is not None:
             scores_list.append((smi, score))
         else:
@@ -219,48 +219,154 @@ async def run_sbdd(
     }
 
 
-async def _prepare_receptor(pdb_id: str | None, protein_name: str) -> str:
-    """Download and prepare receptor PDBQT."""
+def _calc_binding_center(pdb_text: str) -> list[float]:
+    """Estimate binding site center as the centroid of all Cα atoms."""
+    coords = []
+    for line in pdb_text.splitlines():
+        if line.startswith(("ATOM", "HETATM")) and " CA " in line:
+            try:
+                coords.append([float(line[30:38]), float(line[38:46]), float(line[46:54])])
+            except ValueError:
+                continue
+    if not coords:
+        return [0.0, 0.0, 0.0]
+    arr = np.array(coords)
+    return arr.mean(axis=0).tolist()
+
+
+def _pdb_to_pdbqt_receptor(pdb_path: str, pdbqt_path: str) -> None:
+    """
+    Convert receptor PDB → PDBQT.
+    Tries (in order):
+      1. obabel CLI   (most reliable, handles atom types properly)
+      2. openbabel Python bindings
+    Raises RuntimeError with install instructions if neither is available.
+    """
+    import subprocess
+
+    # 1. Try obabel CLI
+    try:
+        result = subprocess.run(
+            ["obabel", pdb_path, "-O", pdbqt_path, "-xr"],
+            capture_output=True, timeout=120,
+        )
+        if result.returncode == 0 and Path(pdbqt_path).exists():
+            return
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # 2. Try Python openbabel
+    try:
+        from openbabel import openbabel as ob
+        conv = ob.OBConversion()
+        conv.SetInAndOutFormats("pdb", "pdbqt")
+        mol = ob.OBMol()
+        conv.ReadFile(mol, pdb_path)
+        mol.AddHydrogens()
+        conv.WriteFile(mol, pdbqt_path)
+        if Path(pdbqt_path).exists():
+            return
+    except ImportError:
+        pass
+
+    raise RuntimeError(
+        "Receptor PDBQT preparation requires OpenBabel. "
+        "Install it with: brew install open-babel (macOS), "
+        "apt-get install openbabel (Linux), or conda install -c conda-forge openbabel. "
+        "Then re-run in real mode."
+    )
+
+
+def _mol_to_pdbqt(mol) -> str | None:
+    """
+    Convert an RDKit Mol (with 3D coords) to a PDBQT string.
+    Uses meeko if available; falls back to a minimal PDBQT writer.
+    """
+    # Try meeko (preferred)
+    try:
+        from meeko import MoleculePreparation
+        from meeko import PDBQTWriterLegacy
+        preparator = MoleculePreparation()
+        setups = preparator.prepare(mol)
+        if setups:
+            pdbqt_str, is_ok, err = PDBQTWriterLegacy.write_string(setups[0])
+            if is_ok:
+                return pdbqt_str
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"meeko preparation failed: {e}")
+
+    # Minimal fallback: write a PDBQT from the 3D mol
+    # Uses RDKit to write PDB then converts to minimal PDBQT
+    try:
+        from rdkit.Chem import rdmolfiles
+        import subprocess, tempfile as _tmp
+        tmp = Path(_tmp.mkdtemp())
+        pdb_path = str(tmp / "lig.pdb")
+        pdbqt_path = str(tmp / "lig.pdbqt")
+        rdmolfiles.MolToPDBFile(mol, pdb_path)
+        result = subprocess.run(
+            ["obabel", pdb_path, "-O", pdbqt_path],
+            capture_output=True, timeout=30,
+        )
+        if result.returncode == 0 and Path(pdbqt_path).exists():
+            return Path(pdbqt_path).read_text()
+    except Exception as e:
+        logger.debug(f"obabel ligand conversion failed: {e}")
+
+    return None
+
+
+async def _prepare_receptor(pdb_id: str, protein_name: str) -> tuple[str, list[float]]:
+    """
+    Download PDB, calculate binding box center, convert to PDBQT.
+    Returns (pdbqt_path, [cx, cy, cz]).
+    """
     import httpx
-    from pathlib import Path
     tmp = Path(tempfile.mkdtemp())
     pdb_path = tmp / "receptor.pdb"
+    pdbqt_path = tmp / "receptor.pdbqt"
 
-    if pdb_id:
-        url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            pdb_path.write_bytes(r.content)
-    else:
-        logger.warning("No PDB ID available; using empty receptor stub.")
-        pdb_path.write_text("REMARK placeholder\n")
+    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        pdb_text = r.text
+        pdb_path.write_text(pdb_text)
 
-    return str(pdb_path)
+    center = _calc_binding_center(pdb_text)
+    logger.info(f"[SBDD] Binding box center for {pdb_id}: {[round(c,1) for c in center]}")
+
+    _pdb_to_pdbqt_receptor(str(pdb_path), str(pdbqt_path))
+    return str(pdbqt_path), center
 
 
-async def _dock_ligand(smiles: str, receptor_path: str, idx: int) -> float | None:
+async def _dock_ligand(smiles: str, receptor_pdbqt: str, center: list[float], idx: int) -> float | None:
     """Dock a single ligand; return best docking score (kcal/mol)."""
     try:
         from rdkit import Chem
         from rdkit.Chem import AllChem
-        import vina
+        from vina import Vina
 
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
             return None
         mol = Chem.AddHs(mol)
-        AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
+        if AllChem.EmbedMolecule(mol, AllChem.ETKDGv3()) == -1:
+            return None
         AllChem.MMFFOptimizeMolecule(mol)
 
-        tmp = Path(tempfile.mkdtemp())
-        lig_path = str(tmp / f"lig_{idx}.pdbqt")
+        pdbqt_str = _mol_to_pdbqt(mol)
+        if pdbqt_str is None:
+            logger.debug(f"Ligand {idx}: PDBQT conversion failed")
+            return None
 
-        v = vina.Vina(sf_name="vina", verbosity=0)
-        v.set_receptor(receptor_path)
-        v.set_ligand_from_string(Chem.MolToMolBlock(mol))
-        v.compute_vina_maps(center=[0, 0, 0], box_size=[30, 30, 30])
-        v.dock(exhaustiveness=8, n_poses=5)
+        v = Vina(sf_name="vina", verbosity=0)
+        v.set_receptor(receptor_pdbqt)
+        v.set_ligand_from_string(pdbqt_str)
+        v.compute_vina_maps(center=center, box_size=[25, 25, 25])
+        v.dock(exhaustiveness=8, n_poses=3)
         energies = v.energies()
         return float(energies[0][0]) if energies else None
     except Exception as e:

@@ -26,6 +26,7 @@ kaleido==0.2.1
 
 # Molecular Docking / SBDD
 vina==1.2.7
+meeko==0.5.0
 
 # MD Simulation (OpenMM + trajectory analysis)
 openmm==8.1.2
