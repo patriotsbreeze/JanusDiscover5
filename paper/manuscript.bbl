@@ -1,0 +1,352 @@
+\providecommand{\latin}[1]{#1}
+\makeatletter
+\providecommand{\doi}
+  {\begingroup\let\do\@makeother\dospecials
+  \catcode`\{=1 \catcode`\}=2 \doi@aux}
+\providecommand{\doi@aux}[1]{\endgroup\texttt{#1}}
+\makeatother
+\providecommand*\mcitethebibliography{\thebibliography}
+\csname @ifundefined\endcsname{endmcitethebibliography}
+  {\let\endmcitethebibliography\endthebibliography}{}
+\begin{mcitethebibliography}{36}
+\providecommand*\natexlab[1]{#1}
+\providecommand*\mciteSetBstSublistMode[1]{}
+\providecommand*\mciteSetBstMaxWidthForm[2]{}
+\providecommand*\mciteBstWouldAddEndPuncttrue
+  {\def\EndOfBibitem{\unskip.}}
+\providecommand*\mciteBstWouldAddEndPunctfalse
+  {\let\EndOfBibitem\relax}
+\providecommand*\mciteSetBstMidEndSepPunct[3]{}
+\providecommand*\mciteSetBstSublistLabelBeginEnd[3]{}
+\providecommand*\EndOfBibitem{}
+\mciteSetBstSublistMode{f}
+\mciteSetBstMaxWidthForm{subitem}{(\alph{mcitesubitemcount})}
+\mciteSetBstSublistLabelBeginEnd
+  {\mcitemaxwidthsubitemform\space}
+  {\relax}
+  {\relax}
+
+\bibitem[Rohrer and Baumann(2009)Rohrer, and Baumann]{rohrer2009muv}
+Rohrer,~S.~G.; Baumann,~K. Maximum unbiased validation ({MUV}) data sets for
+  virtual screening based on {PubChem} bioactivity data. \emph{Journal of
+  Chemical Information and Modeling} \textbf{2009}, \emph{49}, 169--184\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[DiMasi \latin{et~al.}(2016)DiMasi, Grabowski, and
+  Hansen]{dimasi2016innovation}
+DiMasi,~J.~A.; Grabowski,~H.~G.; Hansen,~R.~W. Innovation in the pharmaceutical
+  industry: New estimates of {R\&D} costs. \emph{Journal of Health Economics}
+  \textbf{2016}, \emph{47}, 20--33\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Wouters \latin{et~al.}(2020)Wouters, McKee, and
+  Luyten]{wouters2020estimated}
+Wouters,~O.~J.; McKee,~M.; Luyten,~J. Estimated research and development
+  investment needed to bring a new medicine to market, 2009--2018. \emph{JAMA}
+  \textbf{2020}, \emph{323}, 844--853\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Kitchen \latin{et~al.}(2004)Kitchen, Decornez, Furr, and
+  Bajorath]{kitchen2004docking}
+Kitchen,~D.~B.; Decornez,~H.; Furr,~J.~R.; Bajorath,~J. Docking and scoring in
+  virtual screening for drug discovery: methods and applications. \emph{Nature
+  Reviews Drug Discovery} \textbf{2004}, \emph{3}, 935--949\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Sliwoski \latin{et~al.}(2014)Sliwoski, Kothiwale, Meiler, and
+  Lowe]{sliwoski2014computational}
+Sliwoski,~G.; Kothiwale,~S.; Meiler,~J.; Lowe,~E.~W. Computational methods in
+  drug discovery. \emph{Pharmacological Reviews} \textbf{2014}, \emph{66},
+  334--395\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Hughes \latin{et~al.}(2011)Hughes, Rees, Kalindjian, and
+  Philpott]{hughes2011principles}
+Hughes,~J.~P.; Rees,~S.; Kalindjian,~S.~B.; Philpott,~K.~L. Principles of early
+  drug discovery. \emph{British Journal of Pharmacology} \textbf{2011},
+  \emph{162}, 1239--1249\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Johnson and Maggiora(1990)Johnson, and Maggiora]{johnson1990concepts}
+Johnson,~M.~A.; Maggiora,~G.~M. Concepts and applications of molecular
+  similarity. \emph{Wiley-Interscience} \textbf{1990}, \relax
+\mciteBstWouldAddEndPunctfalse
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Rogers and Hahn(2010)Rogers, and Hahn]{rogers2010extended}
+Rogers,~D.; Hahn,~M. Extended-connectivity fingerprints. \emph{Journal of
+  Chemical Information and Modeling} \textbf{2010}, \emph{50}, 742--754\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Breiman(2001)]{breiman2001random}
+Breiman,~L. Random forests. \emph{Machine Learning} \textbf{2001}, \emph{45},
+  5--32\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Svetnik \latin{et~al.}(2003)Svetnik, Liaw, Tong, Culberson, Sheridan,
+  and Feuston]{svetnik2003random}
+Svetnik,~V.; Liaw,~A.; Tong,~C.; Culberson,~J.~C.; Sheridan,~R.~P.;
+  Feuston,~B.~P. Random forest: a classification and regression tool for
+  compound classification and {QSAR} modeling. \emph{Journal of Chemical
+  Information and Computer Sciences} \textbf{2003}, \emph{43}, 1947--1958\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Trott and Olson(2010)Trott, and Olson]{trott2010autodock}
+Trott,~O.; Olson,~A.~J. {AutoDock Vina}: improving the speed and accuracy of
+  docking with a new scoring function, efficient optimization, and
+  multithreading. \emph{Journal of Computational Chemistry} \textbf{2010},
+  \emph{31}, 455--461\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Eberhardt \latin{et~al.}(2021)Eberhardt, Santos-Martins, Tillack, and
+  Forli]{eberhardt2021autodock}
+Eberhardt,~J.; Santos-Martins,~D.; Tillack,~A.~F.; Forli,~S. {AutoDock Vina}
+  1.2.0: new docking methods, expanded force field, and {Python} bindings.
+  \emph{Journal of Chemical Information and Modeling} \textbf{2021}, \emph{61},
+  3891--3898\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Forli \latin{et~al.}(2016)Forli, Huey, Pique, Sanner, Goodsell, and
+  Olson]{forli2016computational}
+Forli,~S.; Huey,~R.; Pique,~M.~E.; Sanner,~M.~F.; Goodsell,~D.~S.; Olson,~A.~J.
+  Computational protein--ligand docking and virtual drug screening with the
+  {AutoDock} suite. \emph{Nature Protocols} \textbf{2016}, \emph{11},
+  905--919\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Chodera and No{\'e}(2014)Chodera, and No{\'e}]{chodera2011markov}
+Chodera,~J.~D.; No{\'e},~F. Markov state models of biomolecular conformational
+  dynamics. \emph{Current Opinion in Structural Biology} \textbf{2014},
+  \emph{25}, 135--144\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Eastman \latin{et~al.}(2017)Eastman, Swails, Chodera, McGibbon, Zhao,
+  Beauchamp, Wang, Simmonett, Harrigan, Stern, \latin{et~al.}
+  others]{eastman2017openmm}
+Eastman,~P.; Swails,~J.; Chodera,~J.~D.; McGibbon,~R.~T.; Zhao,~Y.;
+  Beauchamp,~K.~A.; Wang,~L.-P.; Simmonett,~A.~C.; Harrigan,~M.~P.;
+  Stern,~C.~D.; others {OpenMM} 7: rapid development of high performance
+  algorithms for molecular dynamics. \emph{PLOS Computational Biology}
+  \textbf{2017}, \emph{13}, e1005659\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Eastman \latin{et~al.}(2024)Eastman, Behara, Dotson, Galvelis, Herr,
+  Horton, Mao, Chodera, Pritchard, Wang, \latin{et~al.}
+  others]{eastman2024openmm8}
+Eastman,~P.; Behara,~P.~K.; Dotson,~D.~L.; Galvelis,~R.; Herr,~J.~E.;
+  Horton,~J.~T.; Mao,~Y.; Chodera,~J.~D.; Pritchard,~B.~P.; Wang,~Y.; others
+  {OpenMM} 8: molecular dynamics simulation with machine learning potentials.
+  \emph{The Journal of Physical Chemistry B} \textbf{2024}, \emph{128},
+  109--116\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Maier \latin{et~al.}(2015)Maier, Martinez, Kasavajhala, Wickstrom,
+  Hauser, and Simmerling]{maier2015ff14sb}
+Maier,~J.~A.; Martinez,~C.; Kasavajhala,~K.; Wickstrom,~L.; Hauser,~K.~E.;
+  Simmerling,~C. ff14{SB}: improving the accuracy of protein side chain and
+  backbone parameters from ff99{SB}. \emph{Journal of Chemical Theory and
+  Computation} \textbf{2015}, \emph{11}, 3696--3713\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Qiu \latin{et~al.}(2021)Qiu, Smith, Boothroyd, Jang, Hahn, Wagner,
+  Bannan, Gokey, Lim, Stern, \latin{et~al.} others]{qiu2021forcefield}
+Qiu,~Y.; Smith,~D. G.~A.; Boothroyd,~S.; Jang,~H.; Hahn,~D.~F.; Wagner,~J.;
+  Bannan,~C.~C.; Gokey,~T.; Lim,~V.~T.; Stern,~C.~D.; others Development and
+  benchmarking of open force field v1.0.0---the {Parsley} small-molecule force
+  field. \emph{Journal of Chemical Theory and Computation} \textbf{2021},
+  \emph{17}, 6262--6280\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Doerr \latin{et~al.}(2016)Doerr, Harvey, No{\'e}, and
+  De~Fabritiis]{harvey2019htmd}
+Doerr,~S.; Harvey,~M.~J.; No{\'e},~F.; De~Fabritiis,~G. {HTMD}: high-throughput
+  molecular dynamics for molecular discovery. \emph{Journal of Chemical Theory
+  and Computation} \textbf{2016}, \emph{12}, 1845--1852\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Doerr \latin{et~al.}(2016)Doerr, Harvey, No{\'e}, and
+  De~Fabritiis]{doerr2017htmd}
+Doerr,~S.; Harvey,~M.~J.; No{\'e},~F.; De~Fabritiis,~G. {HTMD}: high-throughput
+  molecular dynamics for molecular discovery. \emph{Journal of Chemical Theory
+  and Computation} \textbf{2016}, \emph{12}, 1845--1852\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Gaulton \latin{et~al.}(2012)Gaulton, Bellis, Bento, Chambers, Davies,
+  Hersey, Light, McGlinchey, Michalovich, Al-Lazikani, \latin{et~al.}
+  others]{gaulton2012chembl}
+Gaulton,~A.; Bellis,~L.~J.; Bento,~A.~P.; Chambers,~J.; Davies,~M.; Hersey,~A.;
+  Light,~Y.; McGlinchey,~S.; Michalovich,~D.; Al-Lazikani,~B.; others {ChEMBL}:
+  a large-scale bioactivity database for drug discovery. \emph{Nucleic Acids
+  Research} \textbf{2012}, \emph{40}, D1100--D1107\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Berman \latin{et~al.}(2000)Berman, Westbrook, Feng, Gilliland, Bhat,
+  Weissig, Shindyalov, and Bourne]{berman2000protein}
+Berman,~H.~M.; Westbrook,~J.; Feng,~Z.; Gilliland,~G.; Bhat,~T.~N.;
+  Weissig,~H.; Shindyalov,~I.~N.; Bourne,~P.~E. The {Protein Data Bank}.
+  \emph{Nucleic Acids Research} \textbf{2000}, \emph{28}, 235--242\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Landrum()]{rdkit}
+Landrum,~G.~A. {RDKit}: open-source cheminformatics.
+  \url{https://www.rdkit.org}, Version 2024.03; accessed 2025\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Mysinger \latin{et~al.}(2012)Mysinger, Carchia, Irwin, and
+  Shoichet]{mysinger2012dud}
+Mysinger,~M.~M.; Carchia,~M.; Irwin,~J.~J.; Shoichet,~B.~K. Directory of useful
+  decoys, enhanced ({DUD-E}): better ligands and decoys for better
+  benchmarking. \emph{Journal of Medicinal Chemistry} \textbf{2012}, \emph{55},
+  6582--6594\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Pedregosa \latin{et~al.}(2011)Pedregosa, Varoquaux, Gramfort, Michel,
+  Thirion, Grisel, Blondel, Prettenhofer, Weiss, Dubourg, \latin{et~al.}
+  others]{pedregosa2011scikit}
+Pedregosa,~F.; Varoquaux,~G.; Gramfort,~A.; Michel,~V.; Thirion,~B.;
+  Grisel,~O.; Blondel,~M.; Prettenhofer,~P.; Weiss,~R.; Dubourg,~V.; others
+  Scikit-learn: machine learning in {Python}. \emph{Journal of Machine Learning
+  Research} \textbf{2011}, \emph{12}, 2825--2830\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Irwin \latin{et~al.}(2012)Irwin, Sterling, Mysinger, Bolstad, and
+  Coleman]{irwin2012zinc}
+Irwin,~J.~J.; Sterling,~T.; Mysinger,~M.~M.; Bolstad,~E.~S.; Coleman,~R.~G.
+  {ZINC}: a free tool to discover chemistry for biology. \emph{Journal of
+  Chemical Information and Modeling} \textbf{2012}, \emph{52}, 1757--1768\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Riniker and Landrum(2015)Riniker, and Landrum]{riniker2015better}
+Riniker,~S.; Landrum,~G.~A. Better informed distance geometry: using what we
+  know to improve conformation generation. \emph{Journal of Chemical
+  Information and Modeling} \textbf{2015}, \emph{55}, 2562--2574\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Wang \latin{et~al.}(2004)Wang, Wolf, Caldwell, Kollman, and
+  Case]{wang2004development}
+Wang,~J.; Wolf,~R.~M.; Caldwell,~J.~W.; Kollman,~P.~A.; Case,~D.~A. Development
+  and testing of a general {Amber} force field. \emph{Journal of Computational
+  Chemistry} \textbf{2004}, \emph{25}, 1157--1174\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Jorgensen \latin{et~al.}(1983)Jorgensen, Chandrasekhar, Madura, Impey,
+  and Klein]{jorgensen1983comparison}
+Jorgensen,~W.~L.; Chandrasekhar,~J.; Madura,~J.~D.; Impey,~R.~W.; Klein,~M.~L.
+  Comparison of simple potential functions for simulating liquid water.
+  \emph{The Journal of Chemical Physics} \textbf{1983}, \emph{79},
+  926--935\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Michaud-Agrawal \latin{et~al.}(2011)Michaud-Agrawal, Denning, Woolf,
+  and Beckstein]{michaud2011mdanalysis}
+Michaud-Agrawal,~N.; Denning,~E.~J.; Woolf,~T.~B.; Beckstein,~O. {MDAnalysis}:
+  a toolkit for the analysis of molecular dynamics simulations. \emph{Journal
+  of Computational Chemistry} \textbf{2011}, \emph{32}, 2319--2327\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Gowers \latin{et~al.}(2016)Gowers, Linke, Barnoud, Reddy, Melo,
+  Seyler, Doma{\'n}ski, Dotson, Buchoux, Kenney, \latin{et~al.}
+  others]{gowers2016mdanalysis}
+Gowers,~R.~J.; Linke,~M.; Barnoud,~J.; Reddy,~T. J.~E.; Melo,~M.~N.;
+  Seyler,~S.~L.; Doma{\'n}ski,~J.; Dotson,~D.~L.; Buchoux,~S.; Kenney,~I.~M.;
+  others {MDAnalysis}: a {Python} package for the rapid analysis of molecular
+  dynamics simulations. Proceedings of the 15th Python in Science Conference.
+  2016; pp 98--105\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Shrake and Rupley(1973)Shrake, and Rupley]{shrake1973environment}
+Shrake,~A.; Rupley,~J.~A. Environment and exposure to solvent of protein atoms:
+  {Lysozyme} and insulin. \emph{Journal of Molecular Biology} \textbf{1973},
+  \emph{79}, 351--371\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Truchon and Bayly(2007)Truchon, and Bayly]{truchon2007evaluating}
+Truchon,~J.-F.; Bayly,~C.~I. Evaluating virtual screening methods: good and bad
+  metrics for the ``early recognition'' problem. \emph{Journal of Chemical
+  Information and Modeling} \textbf{2007}, \emph{47}, 488--508\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Nagar \latin{et~al.}(2003)Nagar, Bornmann, Pellicena, Schindler,
+  Veach, Miller, Clarkson, and Kuriyan]{nagar2002structural}
+Nagar,~B.; Bornmann,~W.~G.; Pellicena,~P.; Schindler,~T.; Veach,~D.~R.;
+  Miller,~W.~T.; Clarkson,~B.; Kuriyan,~J. Structural basis for the
+  autoinhibition of c-{Abl} tyrosine kinase. \emph{Cell} \textbf{2003},
+  \emph{112}, 859--871\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\bibitem[Bemis and Murcko(1996)Bemis, and Murcko]{bemis1996properties}
+Bemis,~G.~W.; Murcko,~M.~A. The properties of known drugs. 1. {Molecular}
+  frameworks. \emph{Journal of Medicinal Chemistry} \textbf{1996}, \emph{39},
+  2887--2893\relax
+\mciteBstWouldAddEndPuncttrue
+\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
+\EndOfBibitem
+\end{mcitethebibliography}

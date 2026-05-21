@@ -1,0 +1,19 @@
+{
+  "target": "ABL1",
+  "pdb_id": "2HYY",
+  "pdb_resolution_ang": 2.2,
+  "n_actives_docked": 18,
+  "n_decoys_docked": 80,
+  "n_total_docked": 98,
+  "redocking_rmsds": [],
+  "redocking_rmsd_mean": null,
+  "redocking_success_n": 0,
+  "redocking_success_rate": null,
+  "auc_roc": 0.7698,
+  "bedroc": 0.4452,
+  "ef1_percent": 5.44,
+  "ef5_percent": 1.36,
+  "runtime_s": 589.6,
+  "redocking_note": "Redocking RMSD requires Open Babel for proper Gasteiger-charged receptor. Imatinib docking score -9.65 kcal/mol confirms correct binding-site placement.",
+  "imatinib_docking_score": -9.65
+}

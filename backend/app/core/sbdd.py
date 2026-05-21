@@ -295,27 +295,35 @@ def _calc_binding_center(pdb_text: str) -> tuple[list[float], str]:
         Human-readable description of which approach was used.
     """
     # 1. Co-crystal ligand centroid ────────────────────────────────────────────
+    # Key = resName_chainID_seqNo so each individual ligand molecule is a
+    # separate entry (avoids merging symmetry-related copies in homo-oligomers).
     hetatm_by_res: dict[str, list[list[float]]] = {}
+    hetatm_resname: dict[str, str] = {}
     for line in pdb_text.splitlines():
         if not line.startswith("HETATM"):
             continue
         res_name = line[17:20].strip().upper()
         if res_name in _SOLVENT_RESNAMES:
             continue
+        chain  = line[21] if len(line) > 21 else "A"
+        seqno  = line[22:26].strip() if len(line) > 26 else "1"
+        key    = f"{res_name}_{chain}_{seqno}"
         try:
             coord = [float(line[30:38]), float(line[38:46]), float(line[46:54])]
-            hetatm_by_res.setdefault(res_name, []).append(coord)
+            hetatm_by_res.setdefault(key, []).append(coord)
+            hetatm_resname[key] = res_name
         except ValueError:
             continue
 
     if hetatm_by_res:
-        # Pick the residue with the most heavy atoms — most likely the ligand
-        best_res = max(hetatm_by_res, key=lambda k: len(hetatm_by_res[k]))
-        arr = np.array(hetatm_by_res[best_res])
+        # Pick the individual ligand molecule with the most heavy atoms
+        best_key = max(hetatm_by_res, key=lambda k: len(hetatm_by_res[k]))
+        best_res = hetatm_resname[best_key]
+        arr = np.array(hetatm_by_res[best_key])
         center = arr.mean(axis=0).tolist()
         logger.info(
-            f"[SBDD] Binding centre from co-crystal ligand '{best_res}' "
-            f"({len(hetatm_by_res[best_res])} atoms): "
+            f"[SBDD] Binding centre from co-crystal ligand '{best_key}' "
+            f"({len(hetatm_by_res[best_key])} atoms): "
             f"{[round(c, 1) for c in center]}"
         )
         return center, f"co-crystal ligand ({best_res})"
@@ -368,9 +376,15 @@ def _element_from_pdb_line(line: str) -> str:
 
 def _pdb_to_pdbqt_python(pdb_text: str) -> str:
     """
-    Pure-Python PDB → PDBQT for receptor.
+    Pure-Python PDB -> PDBQT for receptor.
     Keeps only ATOM records (protein heavy atoms), assigns AutoDock types.
     No external dependencies.
+
+    PDBQT column layout (Vina 1.2.5):
+      cols  1-66 : standard PDB (occupancy=1.00, B-factor reset to 0.00)
+      cols 67-76 : partial charge  "    0.000" (no + sign; right-justified)
+      col  77    : blank
+      cols 78-79 : AutoDock atom type (e.g. "NA", "C ", "OA")
     """
     out: list[str] = []
     for line in pdb_text.splitlines():
@@ -378,8 +392,14 @@ def _pdb_to_pdbqt_python(pdb_text: str) -> str:
             continue
         el = _element_from_pdb_line(line)
         ad = _AD_TYPE_RECEPTOR.get(el, el[:1] or "C")
-        body = line[:66].ljust(66)
-        out.append(f"{body}  +0.000 {ad}")
+        # Take coords/names (cols 1-54), then fix occupancy=1.00 and B-factor=0.00
+        # so the charge field always starts at the correct column.
+        base = line[:54] if len(line) >= 54 else line.ljust(54)
+        body = f"{base}  1.00  0.00"  # exactly 66 chars
+        # Charge field: Vina reads cols 67-76 (10 chars) as charge.
+        # Use 4 leading spaces + "+0.000" (6 chars) so strip() = "+0.000" (valid).
+        # Atom type at cols 78-79 (col 77 = space separator).
+        out.append(f"{body}    +0.000 {ad:<2s}")
     out.append("END")
     return "\n".join(out)
 
