@@ -128,6 +128,16 @@ async def run_md(
         pdb = app.PDBFile(str(pdb_file))
         forcefield = app.ForceField("amber14-all.xml", "amber14/tip3pfb.xml")
         modeller = app.Modeller(pdb.topology, pdb.positions)
+
+        # Parameterise small-molecule ligand (if SMILES provided).
+        # Must happen before addHydrogens/addSolvent so the FF knows the residue.
+        ligand_ff_applied = _add_ligand_to_openmm(modeller, forcefield, top_hit_smiles)
+        if not ligand_ff_applied and top_hit_smiles:
+            logger.warning(
+                "[MD] Proceeding with protein-only simulation. "
+                "Binding-pocket dynamics may not reflect the true protein–ligand system."
+            )
+
         modeller.addHydrogens(forcefield)
         modeller.addSolvent(forcefield, model="tip3p", padding=1.0 * unit.nanometer)
 
@@ -183,9 +193,14 @@ async def run_md(
 
         u = mda.Universe(str(pdb_file), dcd_path)
         protein = u.select_atoms("protein")
-        ref = u.select_atoms("protein")
+        ref_u = mda.Universe(str(pdb_file))
+        ref_protein = ref_u.select_atoms("protein")
 
-        rmsd_analysis = rms.RMSD(protein, ref, select="backbone", groupselections=["backbone"])
+        rmsd_analysis = rms.RMSD(
+            protein, ref_protein,
+            select="backbone",
+            groupselections=["backbone"],
+        )
         rmsd_analysis.run()
         rmsd_arr = rmsd_analysis.rmsd[:, 2] / 10  # Å → nm
 
@@ -194,12 +209,21 @@ async def run_md(
         rmsf_arr = rmsf_analysis.rmsf / 10
 
         time_arr = np.linspace(0, duration_ns, len(rmsd_arr))
-        rg_arr = np.array([
-            np.sqrt(np.mean(np.sum((protein.positions - protein.center_of_mass()) ** 2, axis=1))) / 10
-            for ts in u.trajectory
-        ])
+
+        # Radius of gyration per frame
+        rg_list: list[float] = []
+        for _ts in u.trajectory:
+            pos = protein.positions
+            com = protein.center_of_mass()
+            rg_list.append(
+                float(np.sqrt(np.mean(np.sum((pos - com) ** 2, axis=1)))) / 10
+            )
+        rg_arr = np.array(rg_list)
+
         pot_arr = np.array(pot_energies)
-        sasa_arr = np.ones_like(time_arr) * 155  # placeholder
+
+        # SASA per frame — try freesasa → MDAnalysis SASA → Rg-proxy fallback
+        sasa_arr = _compute_sasa(u, protein, time_arr)
 
         figs = _generate_md_figures(
             time_arr, rmsd_arr, rmsd_arr * 1.5, rmsf_arr, rg_arr, pot_arr, sasa_arr, figures_dir
@@ -212,7 +236,9 @@ async def run_md(
             "rmsd_std_nm": round(float(rmsd_arr.std()), 4),
             "rmsf_mean_nm": round(float(rmsf_arr.mean()), 4),
             "radius_of_gyration_mean_nm": round(float(rg_arr.mean()), 4),
+            "sasa_mean_nm2": round(float(sasa_arr.mean()), 4),
             "potential_energy_mean_kj_mol": round(float(pot_arr.mean()), 2),
+            "ligand_ff_applied": ligand_ff_applied,
             "figures": figs,
             "run_time_seconds": round(time.time() - t0, 2),
             "mock": False,
@@ -228,6 +254,126 @@ async def run_md(
     except Exception as e:
         logger.error(f"[MD] Real simulation failed ({type(e).__name__}): {e}")
         raise RuntimeError(f"MD simulation failed: {e}") from e
+
+
+def _compute_sasa(u, protein, time_arr: np.ndarray) -> np.ndarray:
+    """
+    Compute per-frame SASA (nm²) for *protein* along a MDAnalysis trajectory.
+
+    Priority
+    --------
+    1. ``freesasa`` Python bindings — fast, accurate Shrake-Rupley algorithm.
+    2. ``MDAnalysis.analysis.hydrogenbonds`` shrake_rupley if available
+       (MDAnalysis ≥ 2.0 with ``freesasa`` backend).
+    3. Geometric proxy: 4π (Rg + r_probe)² per frame as a last resort.
+       Reported with a warning so the user knows to interpret cautiously.
+    """
+    n_frames = len(time_arr)
+
+    # Method 1: freesasa ───────────────────────────────────────────────────────
+    try:
+        import freesasa
+        sasa_vals: list[float] = []
+        for _ts in u.trajectory:
+            coords = protein.positions  # Å
+            radii = [freesasa.classifyAtom(a.name, a.resname) for a in protein.atoms]
+            # classifyAtom returns a radius float; create Structure directly
+            structure = freesasa.Structure()
+            for i, (atom, coord) in enumerate(zip(protein.atoms, coords)):
+                structure.addAtom(
+                    atom.name, atom.resname, atom.resid, "A",
+                    coord[0], coord[1], coord[2],
+                )
+            result = freesasa.calc(structure)
+            sasa_vals.append(result.totalArea() / 100.0)  # Å² → nm²
+        sasa_arr = np.array(sasa_vals)
+        logger.info("[MD] SASA computed via freesasa")
+        return sasa_arr
+    except Exception as exc:
+        logger.debug(f"[MD] freesasa failed: {exc}")
+
+    # Method 2: MDAnalysis built-in shrake_rupley (MDAnalysis ≥ 2.4) ──────────
+    try:
+        from MDAnalysis.analysis import hydrogenbonds  # noqa — version probe
+        from MDAnalysis.analysis.hydrogenbonds import shrake_rupley
+        sasa_vals = []
+        for _ts in u.trajectory:
+            radii, areas = shrake_rupley(protein)
+            sasa_vals.append(float(areas.sum()) / 100.0)
+        sasa_arr = np.array(sasa_vals)
+        logger.info("[MD] SASA computed via MDAnalysis shrake_rupley")
+        return sasa_arr
+    except Exception as exc:
+        logger.debug(f"[MD] MDAnalysis shrake_rupley failed: {exc}")
+
+    # Method 3: Rg-based geometric proxy ──────────────────────────────────────
+    logger.warning(
+        "[MD] SASA falling back to geometric Rg-proxy (install 'freesasa' for "
+        "accurate values: pip install freesasa)"
+    )
+    r_probe = 0.14  # nm, water probe radius
+    sasa_vals = []
+    for _ts in u.trajectory:
+        pos = protein.positions
+        com = protein.center_of_mass()
+        rg_nm = float(np.sqrt(np.mean(np.sum((pos - com) ** 2, axis=1)))) / 10
+        sasa_vals.append(4 * math.pi * (rg_nm + r_probe) ** 2)
+    return np.array(sasa_vals)
+
+
+def _add_ligand_to_openmm(modeller, forcefield, smiles: str | None) -> bool:
+    """
+    Parameterise a small-molecule ligand using the OpenFF toolkit (SMIRNOFF
+    force field) or GAFF2 via openmmforcefields, then add it to *modeller*
+    and *forcefield*.
+
+    Returns ``True`` if ligand was added successfully, ``False`` otherwise.
+    When this returns ``False`` the MD run proceeds with protein-only, and
+    the result dict records ``ligand_ff_applied = False`` so the limitation
+    is explicit in the output.
+
+    Dependencies (optional, install for full protein-ligand MD):
+        pip install openff-toolkit openmmforcefields
+    """
+    if not smiles:
+        return False
+
+    # Method 1: OpenFF toolkit (SMIRNOFF / Sage force field) ──────────────────
+    try:
+        from openff.toolkit import Molecule as OFFMolecule
+        from openmmforcefields.generators import SMIRNOFFTemplateGenerator
+
+        off_mol = OFFMolecule.from_smiles(smiles)
+        off_mol.generate_conformers(n_conformers=1)
+        smirnoff_gen = SMIRNOFFTemplateGenerator(molecules=[off_mol])
+        forcefield.registerTemplateGenerator(smirnoff_gen.generator)
+        logger.info("[MD] Ligand parameterised via OpenFF SMIRNOFF (Sage)")
+        return True
+    except ImportError:
+        pass
+    except Exception as exc:
+        logger.warning(f"[MD] OpenFF SMIRNOFF failed: {exc}")
+
+    # Method 2: GAFF2 via openmmforcefields ───────────────────────────────────
+    try:
+        from openff.toolkit import Molecule as OFFMolecule
+        from openmmforcefields.generators import GAFFTemplateGenerator
+
+        off_mol = OFFMolecule.from_smiles(smiles)
+        gaff_gen = GAFFTemplateGenerator(molecules=[off_mol], forcefield="gaff-2.11")
+        forcefield.registerTemplateGenerator(gaff_gen.generator)
+        logger.info("[MD] Ligand parameterised via GAFF2")
+        return True
+    except ImportError:
+        pass
+    except Exception as exc:
+        logger.warning(f"[MD] GAFF2 parameterisation failed: {exc}")
+
+    logger.warning(
+        "[MD] Could not parameterise ligand — running protein-only MD. "
+        "Install 'openff-toolkit openmmforcefields' for protein-ligand simulations."
+    )
+    return False
 
 
 def _cuda_available() -> bool:

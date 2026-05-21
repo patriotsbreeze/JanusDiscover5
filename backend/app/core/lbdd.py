@@ -147,8 +147,11 @@ async def run_lbdd(
     # ── Real mode ──────────────────────────────────────────────────────────────
     logger.info(f"[LBDD] Starting real pipeline for {protein_name}")
 
-    actives_smiles = MOCK_ACTIVES          # replace with ChEMBL fetch in prod
-    inactives_smiles = MOCK_INACTIVES * 3  # decoys
+    # Fetch target-specific actives from ChEMBL; load screening library early
+    # so property-matched decoys can be drawn from it.
+    actives_smiles = _fetch_target_actives(protein_name)
+    screen_smiles = _load_dataset(dataset)
+    inactives_smiles = _generate_property_matched_decoys(actives_smiles, screen_smiles)
 
     X_act = _smiles_to_fp(actives_smiles)
     X_inact = _smiles_to_fp(inactives_smiles)
@@ -173,8 +176,7 @@ async def run_lbdd(
 
     figs = _generate_lbdd_figures(y, y_prob, roc_curve, precision_recall_curve, figures_dir)
 
-    # Screen virtual library
-    screen_smiles = _load_dataset(dataset)
+    # Screen virtual library (already loaded above for decoy generation)
     clf.fit(X, y)
     X_screen = _smiles_to_fp(screen_smiles)
     scores = clf.predict_proba(X_screen)[:, 1]
@@ -371,6 +373,159 @@ def _validate_smiles(smiles_list: list[str]) -> list[str]:
         except Exception:
             pass
     return valid
+
+
+# ── ChEMBL target-specific actives ───────────────────────────────────────────
+
+def _fetch_target_actives(protein_name: str, max_compounds: int = 200) -> list[str]:
+    """
+    Fetch known active compounds for *protein_name* from ChEMBL.
+
+    Strategy
+    --------
+    1. Search ChEMBL for the target by text query.
+    2. Prefer the first *SINGLE PROTEIN* hit; fall back to the top result.
+    3. Retrieve binding-assay activities with pChEMBL ≥ 6.0 (IC50/Ki ≤ 1 µM).
+    4. Return validated SMILES.
+
+    Falls back to ``MOCK_ACTIVES`` on any network or API failure so the
+    pipeline never stalls during development without internet access.
+    """
+    logger.info(f"[LBDD] Fetching ChEMBL actives for '{protein_name}'")
+    try:
+        from chembl_webresource_client.new_client import new_client
+
+        # 1. Find the target ───────────────────────────────────────────────────
+        results = list(new_client.target.search(protein_name))
+        if not results:
+            raise ValueError(f"No ChEMBL target matched '{protein_name}'")
+
+        target_id: str | None = None
+        for t in results[:10]:
+            if str(t.get("target_type", "")).upper() == "SINGLE PROTEIN":
+                target_id = t["target_chembl_id"]
+                break
+        if target_id is None:
+            target_id = results[0]["target_chembl_id"]
+        logger.info(f"[LBDD] ChEMBL target selected: {target_id}")
+
+        # 2. Fetch binding activities ──────────────────────────────────────────
+        activities = new_client.activity.filter(
+            target_chembl_id=target_id,
+            pchembl_value__gte=6.0,   # ≤ 1 µM potency
+            assay_type="B",           # binding assays only
+        ).only(["canonical_smiles", "pchembl_value"])
+
+        smiles_seen: set[str] = set()
+        smiles_list: list[str] = []
+        for act in activities:
+            smi = (act.get("canonical_smiles") or "").strip()
+            if smi and smi not in smiles_seen:
+                smiles_seen.add(smi)
+                smiles_list.append(smi)
+            if len(smiles_list) >= max_compounds:
+                break
+
+        if not smiles_list:
+            raise ValueError(f"Zero activities returned for {target_id}")
+
+        valid = _validate_smiles(smiles_list)
+        logger.info(
+            f"[LBDD] {len(valid)}/{len(smiles_list)} valid active SMILES "
+            f"fetched from ChEMBL ({target_id})"
+        )
+        return valid if valid else MOCK_ACTIVES
+
+    except Exception as exc:
+        logger.warning(
+            f"[LBDD] ChEMBL active fetch failed ({exc}); "
+            "falling back to built-in mock actives"
+        )
+        return MOCK_ACTIVES
+
+
+def _generate_property_matched_decoys(
+    actives: list[str],
+    screen_library: list[str],
+    n_decoys_per_active: int = 5,
+) -> list[str]:
+    """
+    Select property-matched decoys from *screen_library* for *actives*.
+
+    Matching criteria (Lipinski-style tolerances):
+    - Molecular weight : ± 125 Da of active mean
+    - logP             : ± 1.5 of active mean
+    - HBA              : ± 2   of active mean
+    - HBD              : ± 1   of active mean
+
+    Falls back to a random sub-sample when RDKit is unavailable or when
+    the library contains too few matching compounds.
+    """
+    target_n = len(actives) * n_decoys_per_active
+    if not screen_library:
+        logger.warning("[LBDD] Empty screen library; decoys will be empty")
+        return []
+
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import Descriptors
+
+        def _props(smi: str):
+            mol = Chem.MolFromSmiles(smi)
+            if mol is None:
+                return None
+            return (
+                Descriptors.MolWt(mol),
+                Descriptors.MolLogP(mol),
+                Descriptors.NumHAcceptors(mol),
+                Descriptors.NumHDonors(mol),
+            )
+
+        # Compute mean active properties ──────────────────────────────────────
+        act_props = [p for s in actives if (p := _props(s)) is not None]
+        if not act_props:
+            raise ValueError("Could not compute properties for any active")
+
+        mw_mean  = float(np.mean([p[0] for p in act_props]))
+        lp_mean  = float(np.mean([p[1] for p in act_props]))
+        hba_mean = float(np.mean([p[2] for p in act_props]))
+        hbd_mean = float(np.mean([p[3] for p in act_props]))
+
+        # Filter library in random order ──────────────────────────────────────
+        rng = np.random.default_rng(0)
+        indices = rng.permutation(len(screen_library)).tolist()
+        decoys: list[str] = []
+        for i in indices:
+            smi = screen_library[i]
+            p = _props(smi)
+            if p is None:
+                continue
+            mw, lp, hba, hbd = p
+            if (
+                abs(mw  - mw_mean)  <= 125
+                and abs(lp  - lp_mean)  <= 1.5
+                and abs(hba - hba_mean) <= 2
+                and abs(hbd - hbd_mean) <= 1
+            ):
+                decoys.append(smi)
+            if len(decoys) >= target_n:
+                break
+
+        # Supplement with random draws if not enough property-matched ─────────
+        if len(decoys) < target_n // 2:
+            extras = [screen_library[i] for i in indices if screen_library[i] not in decoys]
+            decoys += extras[: target_n - len(decoys)]
+
+        logger.info(f"[LBDD] Generated {len(decoys)} property-matched decoys")
+        return _validate_smiles(decoys)
+
+    except Exception as exc:
+        logger.warning(f"[LBDD] Decoy generation failed ({exc}); using random library subset")
+        rng = np.random.default_rng(0)
+        sample = list(
+            rng.choice(screen_library, size=min(target_n, len(screen_library)), replace=False)
+        )
+        return _validate_smiles(sample)
 
 
 # ── Dataset loading ────────────────────────────────────────────────────────────
