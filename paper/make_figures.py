@@ -167,28 +167,28 @@ def make_workflow_figure():
     return out
 
 
-# ── Figure 4: MD results placeholder ─────────────────────────────────────────
+# ── Figure 4: MD results (real data from analyse_md.py) ──────────────────────
 
 def make_md_figure():
+    MD_FIGS = FIGS_IN / "ABL1_md"
     md_panels = [
-        "RMSD vs time",
-        "Per-residue RMSF",
-        "Radius of gyration",
-        "Potential energy",
-        "SASA vs time",
-        "Score distribution",
+        ("md_rmsd",    "(a) Ca RMSD vs Time"),
+        ("md_rmsf",    "(b) Per-residue RMSF"),
+        ("md_rg",      "(c) Radius of Gyration"),
+        ("md_energy",  "(d) Potential Energy"),
+        ("md_sasa",    "(e) SASA vs Time"),
+        ("md_bs_rmsd", "(f) Binding-site RMSD"),
     ]
     fig, axes = plt.subplots(2, 3, figsize=(15, 9))
     fig.subplots_adjust(hspace=0.4, wspace=0.3)
-    for ax, title in zip(axes.flat, md_panels):
-        ax.set_facecolor("#f8f8f8")
-        ax.text(0.5, 0.5, f"{title}\n(MD simulation pending)",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=9, color="gray")
-        ax.set_title(title, fontsize=10, fontweight="bold")
-        ax.axis("off")
-    fig.suptitle("JanusDiscover MD Simulation — ABL1 Top Hit (10 ns, OpenMM 8)",
-                 fontsize=11, fontweight="bold")
+    for ax, (fname, title) in zip(axes.flat, md_panels):
+        img = load_img(MD_FIGS / f"{fname}.png")
+        panel(ax, img, title, fontsize=9)
+    fig.suptitle(
+        "JanusDiscover MD Simulation — ABL1 Kinase (10 ns, ff14SB/TIP3P, GTX 1080)\n"
+        "Ca RMSD 1.76 Å  |  Binding-site RMSD 0.76 Å  |  Rg 19.44 Å  |  SASA 14,215 Å²",
+        fontsize=10, fontweight="bold"
+    )
     out = FIGS_OUT / "md_results.pdf"
     fig.savefig(out, bbox_inches="tight", dpi=200)
     plt.close(fig)

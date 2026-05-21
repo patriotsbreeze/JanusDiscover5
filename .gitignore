@@ -35,3 +35,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+paper/results/md/production.dcd
+paper/results/md/production.dcd.bak
+paper/results/md/md_run.log

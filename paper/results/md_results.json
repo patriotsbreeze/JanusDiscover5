@@ -1,0 +1,19 @@
+{
+  "target": "ABL1",
+  "pdb_id": "2HYY",
+  "protocol": "protein-only ff14SB/TIP3P, 300 K/1 atm, GTX 1080 OpenCL",
+  "simulation_ns": 10,
+  "timestep_fs": 2,
+  "n_frames": 1000,
+  "n_protein_atoms": 4402,
+  "rmsd_mean_ang": 1.764,
+  "rmsd_max_ang": 2.506,
+  "rmsf_mean_ang": 0.993,
+  "rmsf_max_ang": 9.135,
+  "rg_mean_ang": 19.439,
+  "rg_std_ang": 0.109,
+  "sasa_mean_ang2": 14215.0,
+  "bs_rmsd_mean_ang": 0.762,
+  "bs_rmsd_max_ang": 1.457,
+  "n_bs_ca_atoms": 15
+}
