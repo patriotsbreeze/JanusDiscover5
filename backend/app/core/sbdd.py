@@ -18,6 +18,7 @@ Forli et al. (2016) Nat Protoc 11:905         – Docking protocol
 from __future__ import annotations
 
 import os
+import sys
 import time
 import math
 import logging
@@ -27,6 +28,25 @@ from pathlib import Path
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# ── Vina import: Python wheel first, CLI wrapper fallback ─────────────────────
+try:
+    from vina import Vina as _VinaClass  # official wheel (Linux/Mac or conda)
+    logger.debug("[SBDD] Using vina Python wheel bindings")
+except ImportError:
+    # No wheel available (e.g. Windows Python 3.12) — use subprocess wrapper
+    _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    if str(_repo_root) not in sys.path:
+        sys.path.insert(0, str(_repo_root))
+    try:
+        from vina_cli_wrapper import Vina as _VinaClass  # type: ignore[assignment]
+        logger.info("[SBDD] vina wheel not available — using CLI wrapper (vina.exe)")
+    except ImportError:
+        _VinaClass = None  # type: ignore[assignment,misc]
+        logger.warning(
+            "[SBDD] AutoDock Vina not found (wheel or CLI). "
+            "Docking will be skipped. Install vina or place vina.exe in repo root."
+        )
 
 # Residue names that are NOT drug-like co-crystal ligands (skip when detecting
 # the binding site from HETATM records).
@@ -544,9 +564,12 @@ async def _compute_redocking_rmsds(
     try:
         from rdkit import Chem
         from rdkit.Chem import AllChem, rdMolAlign
-        from vina import Vina
     except ImportError as e:
         logger.warning(f"[SBDD] Redocking validation skipped — missing package: {e}")
+        return rmsds
+    Vina = _VinaClass
+    if Vina is None:
+        logger.warning("[SBDD] Redocking validation skipped — Vina not available")
         return rmsds
 
     # Collect HETATM lines grouped by residue name + chain + residue number
@@ -638,10 +661,12 @@ async def _compute_redocking_rmsds(
 
 async def _dock_ligand(smiles: str, receptor_pdbqt: str, center: list[float], idx: int) -> float | None:
     """Dock a single ligand; return best docking score (kcal/mol)."""
+    Vina = _VinaClass
+    if Vina is None:
+        return None
     try:
         from rdkit import Chem
         from rdkit.Chem import AllChem
-        from vina import Vina
 
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
