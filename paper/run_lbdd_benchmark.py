@@ -1,26 +1,27 @@
 """
-run_lbdd_benchmark.py  (v3 — ChEMBL with canonical target IDs)
-===============================================================
+run_lbdd_benchmark.py  (v4 — MUV kinase benchmark)
+===================================================
 Standalone LBDD benchmark for the JanusDiscover JCIM paper.
 
-Uses ChEMBL directly, queried by canonical target IDs and with a
-relaxed pChEMBL threshold (>= 5.0, IC50 <= 10 uM) so that 400-600
-actives are obtained per target.  Decoys are drawn property-matched
-from the ZINC-250k library.
+Uses the MUV (Maximum Unbiased Validation) dataset [Rohrer & Baumann, 2009]
+downloaded from DeepChem's public S3 bucket.  MUV decoys are deliberately
+designed to be topologically similar to actives (same property profile,
+different scaffold) so the benchmark is *not* trivially solved by structural
+filters — unlike random ZINC decoys.
 
-Targets and ChEMBL IDs:
-  ABL1  → CHEMBL1862  (BCR-ABL tyrosine kinase, human)
-  EGFR  → CHEMBL203   (Epidermal growth factor receptor, human)
-  CDK2  → CHEMBL301   (Cyclin-dependent kinase 2, human)
+Kinase targets selected:
+  MUV-548  →  PKA  (cAMP-dependent protein kinase catalytic subunit)
+  MUV-644  →  ROCK2 (Rho-associated protein kinase 2)
+  MUV-810  →  FAK1 (Focal adhesion kinase 1 / PTK2)
 
 Usage (from repo root):
     python paper/run_lbdd_benchmark.py
 
 Requirements:
-    pip install rdkit chembl-webresource-client scikit-learn numpy matplotlib seaborn
+    pip install rdkit scikit-learn numpy matplotlib seaborn requests
 """
 
-import sys, os, json, time, warnings
+import sys, os, json, time, gzip, io, warnings
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
@@ -37,76 +38,49 @@ from backend.app.core.lbdd import (
     enrichment_factor,
     _generate_lbdd_figures,
     _validate_smiles,
-    _load_dataset,
-    _generate_property_matched_decoys,
 )
 
 RESULTS_DIR = Path(__file__).parent / "results"
 FIGS_DIR    = RESULTS_DIR / "figures"
-CACHE_DIR   = RESULTS_DIR / "chembl_cache"
+CACHE_DIR   = RESULTS_DIR / "muv_cache"
 for d in (RESULTS_DIR, FIGS_DIR, CACHE_DIR):
     d.mkdir(exist_ok=True)
 
-# ── Target definitions ────────────────────────────────────────────────────────
+MUV_URL = "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/muv.csv.gz"
+MUV_CACHE = CACHE_DIR / "muv.csv.gz"
 
+# MUV kinase tasks  (column_name, short, full_name)
 TARGETS = [
-    {
-        "name":       "ABL1 kinase",
-        "short":      "ABL1",
-        "chembl_id":  "CHEMBL1862",          # BCR-ABL, human
-        "uniprot":    "P00519",
-    },
-    {
-        "name":       "EGFR",
-        "short":      "EGFR",
-        "chembl_id":  "CHEMBL203",           # EGFR, human
-        "uniprot":    "P00533",
-    },
-    {
-        "name":       "CDK2",
-        "short":      "CDK2",
-        "chembl_id":  "CHEMBL301",           # CDK2, human
-        "uniprot":    "P24941",
-    },
+    ("MUV-548", "PKA",   "cAMP-dependent protein kinase (PKA)"),
+    ("MUV-644", "ROCK2", "Rho-associated protein kinase 2 (ROCK2)"),
+    ("MUV-810", "FAK1",  "Focal adhesion kinase 1 (FAK1/PTK2)"),
 ]
 
-MAX_ACTIVES = 500          # cap per target
-PCHEMBL_MIN = 5.0          # IC50 / Ki <= 10 uM
-DECOY_RATIO = 5            # decoys per active (DUD-E convention)
+# cap decoys per target (MUV has ~15k decoys per task; cap keeps runtime fast
+# while remaining statistically solid)
+MAX_DECOYS = 1000
 
 
-# ── ChEMBL active fetcher ─────────────────────────────────────────────────────
+# ── MUV downloader ────────────────────────────────────────────────────────────
 
-def fetch_actives(chembl_id: str, short: str, max_n: int = MAX_ACTIVES) -> list[str]:
-    """Fetch unique, validated SMILES for actives with pChEMBL >= PCHEMBL_MIN."""
-    cache = CACHE_DIR / f"{short}_actives.smi"
-    if cache.exists():
-        smiles = cache.read_text().splitlines()
-        print(f"    Loaded {len(smiles)} actives from cache")
-        return _validate_smiles(smiles)
+def load_muv_dataframe():
+    """Download (once) and return MUV as a pandas DataFrame."""
+    import pandas as pd
 
-    from chembl_webresource_client.new_client import new_client
-    print(f"    Querying ChEMBL ({chembl_id}, pChEMBL >= {PCHEMBL_MIN}) ...", end="", flush=True)
+    if not MUV_CACHE.exists():
+        import requests
+        print("Downloading MUV dataset from DeepChem S3 ...", end="", flush=True)
+        r = requests.get(MUV_URL, timeout=120)
+        r.raise_for_status()
+        MUV_CACHE.write_bytes(r.content)
+        print(f" {len(r.content)//1024} KB")
+    else:
+        print("MUV dataset: loaded from cache")
 
-    activities = new_client.activity.filter(
-        target_chembl_id=chembl_id,
-        pchembl_value__gte=PCHEMBL_MIN,
-    ).only(["canonical_smiles", "pchembl_value"])
-
-    seen: set[str] = set()
-    smiles: list[str] = []
-    for act in activities:
-        smi = (act.get("canonical_smiles") or "").strip()
-        if smi and smi not in seen:
-            seen.add(smi)
-            smiles.append(smi)
-        if len(smiles) >= max_n:
-            break
-
-    valid = _validate_smiles(smiles)
-    cache.write_text("\n".join(valid))
-    print(f" {len(valid)} valid SMILES")
-    return valid
+    with gzip.open(str(MUV_CACHE), "rb") as fh:
+        df = pd.read_csv(fh)
+    print(f"MUV shape: {df.shape}  (rows x cols)")
+    return df
 
 
 # ── Bootstrap CI ──────────────────────────────────────────────────────────────
@@ -120,6 +94,8 @@ def bedroc_bootstrap_ci(y, scores, n_boot: int = 1000, alpha: float = 20.0):
             vals.append(bedroc_score(y[idx], scores[idx], alpha))
         except Exception:
             pass
+    if not vals:
+        return 0.0, 0.0, 0.0
     lo = float(np.percentile(vals, 2.5))
     hi = float(np.percentile(vals, 97.5))
     return float(np.mean(vals)), lo, hi
@@ -140,47 +116,63 @@ def run_cv(X, y, n_splits: int = 5):
 
 # ── Per-target run ────────────────────────────────────────────────────────────
 
-def run_target(target: dict, screen_smiles: list[str]) -> dict:
-    short = target["short"]
-    t0    = time.time()
+def run_target(col: str, short: str, full_name: str, df) -> dict:
+    t0 = time.time()
 
     print(f"\n{'='*60}")
-    print(f"  {short}  (ChEMBL: {target['chembl_id']})")
+    print(f"  {short}  ({col})  --  {full_name}")
     print(f"{'='*60}")
 
-    # 1. Actives
-    actives = fetch_actives(target["chembl_id"], short)
-    if len(actives) < 20:
-        return {
-            "target": short,
-            "error": f"Only {len(actives)} actives — ChEMBL query may have failed",
-        }
-    print(f"  Actives : {len(actives)}")
+    # --- extract rows where label is known (not NaN) ---
+    sub = df[df[col].notna()].copy()
+    sub[col] = sub[col].astype(int)
 
-    # 2. Property-matched decoys from ZINC
-    decoys = _generate_property_matched_decoys(
-        actives, screen_smiles, n_decoys_per_active=DECOY_RATIO
-    )
-    print(f"  Decoys  : {len(decoys)} (ratio {len(decoys)/len(actives):.1f}:1)")
+    actives_df  = sub[sub[col] == 1]
+    decoys_df   = sub[sub[col] == 0]
 
-    # 3. Fingerprints
+    print(f"  MUV actives  : {len(actives_df)}")
+    print(f"  MUV decoys   : {len(decoys_df)} (capped at {MAX_DECOYS})")
+
+    if len(actives_df) < 10:
+        return {"target": short, "error": f"Only {len(actives_df)} actives in MUV-{col}"}
+
+    # SMILES extraction & validation
+    act_smi_raw = actives_df["smiles"].dropna().tolist()
+    dec_smi_raw = decoys_df["smiles"].dropna().sample(
+        n=min(MAX_DECOYS, len(decoys_df)), random_state=42
+    ).tolist()
+
+    act_smi = _validate_smiles(act_smi_raw)
+    dec_smi = _validate_smiles(dec_smi_raw)
+
+    if len(act_smi) < 10:
+        return {"target": short, "error": f"Only {len(act_smi)} valid active SMILES"}
+
+    print(f"  Valid actives: {len(act_smi)}")
+    print(f"  Valid decoys : {len(dec_smi)}")
+
+    # cache per-target validated SMILES for reproducibility
+    (CACHE_DIR / f"{short}_actives.smi").write_text("\n".join(act_smi))
+    (CACHE_DIR / f"{short}_decoys.smi").write_text("\n".join(dec_smi))
+
+    # fingerprints
     print("  ECFP4 fingerprints ... ", end="", flush=True)
-    X_act   = _smiles_to_fp(actives)
-    X_inact = _smiles_to_fp(decoys)
+    X_act   = _smiles_to_fp(act_smi)
+    X_inact = _smiles_to_fp(dec_smi)
     X = np.vstack([X_act, X_inact])
-    y = np.array([1] * len(actives) + [0] * len(decoys))
+    y = np.array([1] * len(act_smi) + [0] * len(dec_smi))
     print(f"done  ({X.shape[0]} x {X.shape[1]})")
 
-    # 4. 5-fold CV
+    # 5-fold stratified CV
     print("  5-fold stratified CV ... ", end="", flush=True)
     y_prob = run_cv(X, y)
     print("done")
 
-    # 5. Metrics
-    auc         = float(roc_auc_score(y, y_prob))
-    bd, lo, hi  = bedroc_bootstrap_ci(y, y_prob)
-    ef1         = enrichment_factor(y, y_prob, 0.01)
-    ef5         = enrichment_factor(y, y_prob, 0.05)
+    # metrics
+    auc        = float(roc_auc_score(y, y_prob))
+    bd, lo, hi = bedroc_bootstrap_ci(y, y_prob)
+    ef1        = enrichment_factor(y, y_prob, 0.01)
+    ef5        = enrichment_factor(y, y_prob, 0.05)
 
     n_tot = len(y)
     top1  = max(1, int(n_tot * 0.01))
@@ -190,13 +182,7 @@ def run_target(target: dict, screen_smiles: list[str]) -> dict:
     print(f"  EF  1%  : {ef1:.2f}x  (top-{top1} of {n_tot})")
     print(f"  EF  5%  : {ef5:.2f}x")
 
-    # 6. Sanity check
-    if auc > 0.98:
-        print(f"  NOTE    : AUC={auc:.4f} is high; inspect score distributions")
-        print(f"            This may indicate decoys are not structurally challenging.")
-        print(f"            Consider DUD-E decoys for external-validation benchmarking.")
-
-    # 7. Figures
+    # figures
     fig_dir = FIGS_DIR / short
     fig_dir.mkdir(exist_ok=True)
     figs = _generate_lbdd_figures(y, y_prob, roc_curve, precision_recall_curve, fig_dir)
@@ -206,45 +192,56 @@ def run_target(target: dict, screen_smiles: list[str]) -> dict:
     print(f"  Time    : {elapsed}s")
 
     return {
-        "target":       short,
-        "target_full":  target["name"],
-        "chembl_id":    target["chembl_id"],
-        "n_actives":    len(actives),
-        "n_decoys":     len(decoys),
-        "n_total":      n_tot,
-        "auc_roc":      round(auc, 4),
-        "bedroc":       round(bd, 4),
-        "bedroc_ci_lo": round(lo, 4),
-        "bedroc_ci_hi": round(hi, 4),
-        "ef1_percent":  round(ef1, 2),
-        "ef5_percent":  round(ef5, 2),
-        "figures_dir":  str(fig_dir),
-        "runtime_s":    elapsed,
+        "target":        short,
+        "target_full":   full_name,
+        "muv_col":       col,
+        "n_actives":     len(act_smi),
+        "n_decoys":      len(dec_smi),
+        "n_total":       n_tot,
+        "auc_roc":       round(auc, 4),
+        "bedroc":        round(bd, 4),
+        "bedroc_ci_lo":  round(lo, 4),
+        "bedroc_ci_hi":  round(hi, 4),
+        "ef1_percent":   round(ef1, 2),
+        "ef5_percent":   round(ef5, 2),
+        "figures_dir":   str(fig_dir),
+        "runtime_s":     elapsed,
     }
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    print("\nJanusDiscover -- LBDD Benchmark (ChEMBL + ZINC-250k decoys)")
-    print("  Targets: ABL1 (CHEMBL1862), EGFR (CHEMBL203), CDK2 (CHEMBL301)")
-    print("  pChEMBL >= 5.0 | 500-tree RF | 5-fold CV | 1000 BEDROC bootstraps\n")
+    print("\nJanusDiscover -- LBDD Benchmark (MUV kinase tasks)")
+    print("  Targets : PKA (MUV-548), ROCK2 (MUV-644), FAK1 (MUV-810)")
+    print("  Decoys  : MUV property-matched topological decoys (cap %d)" % MAX_DECOYS)
+    print("  Model   : 500-tree RF | 5-fold stratified CV | 1000 BEDROC bootstraps\n")
 
-    # Load ZINC-250k once (shared decoy pool)
-    print("Loading ZINC-250k screening library ...")
-    screen_smiles = _load_dataset("zinc_250k")
-    print(f"Library: {len(screen_smiles)} valid SMILES\n")
+    # Note: DUD-E (dude.docking.org) returned HTTP 502 on all download
+    # attempts in May 2025 (server backend crash). MUV is used instead;
+    # it provides similarly rigorous property-matched decoys.
+    print("NOTE: DUD-E server returned HTTP 502 (unavailable); MUV used instead.")
+    print("      MUV decoys are property-matched and topologically diverse,")
+    print("      providing a rigorous benchmark comparable to DUD-E.\n")
+
+    df = load_muv_dataframe()
 
     results = []
-    for target in TARGETS:
+    for col, short, full_name in TARGETS:
+        if col not in df.columns:
+            print(f"  SKIP: column {col} not found in MUV CSV")
+            results.append({"target": short, "error": "column not found"})
+            continue
         try:
-            r = run_target(target, screen_smiles)
+            r = run_target(col, short, full_name, df)
             results.append(r)
         except Exception as exc:
-            print(f"  ERROR ({target['short']}): {exc}")
-            results.append({"target": target["short"], "error": str(exc)})
+            import traceback
+            print(f"  ERROR ({short}): {exc}")
+            traceback.print_exc()
+            results.append({"target": short, "error": str(exc)})
 
-    # Save
+    # save JSON
     out = RESULTS_DIR / "lbdd_results.json"
     out.write_text(json.dumps(results, indent=2))
     print(f"\nSaved: {out}")
@@ -256,20 +253,29 @@ def main():
             print(f"  {r['target']}: ERROR -- {r['error']}")
             continue
         print(
-            f"    {r['target']:6s} & {r['auc_roc']:.4f} & "
-            f"{r['bedroc']:.4f} ({r['bedroc_ci_lo']:.4f}--{r['bedroc_ci_hi']:.4f}) & "
-            f"{r['ef1_percent']:.1f}$\\times$ & "
-            f"{r['ef5_percent']:.1f}$\\times$ \\\\"
+            "    %-6s & %s & %.4f & %.4f (%.4f--%.4f) & %.1f$\\times$ & %.1f$\\times$ \\\\" % (
+                r["target"],
+                r.get("muv_col", ""),
+                r["auc_roc"],
+                r["bedroc"], r["bedroc_ci_lo"], r["bedroc_ci_hi"],
+                r["ef1_percent"],
+                r["ef5_percent"],
+            )
         )
     print("---")
 
-    # Summary
+    # summary
     good = [r for r in results if "error" not in r]
     if good:
-        sizes = ", ".join("%s %da/%dd" % (r['target'], r['n_actives'], r['n_decoys']) for r in good)
+        sizes = ", ".join(
+            "%s %da/%dd" % (r["target"], r["n_actives"], r["n_decoys"])
+            for r in good
+        )
         print("\nDataset sizes: " + sizes)
-        mean_auc = sum(r['auc_roc'] for r in good) / len(good)
-        print(f"Mean AUC-ROC: {mean_auc:.4f}")
+        mean_auc = sum(r["auc_roc"] for r in good) / len(good)
+        mean_bd  = sum(r["bedroc"]  for r in good) / len(good)
+        print("Mean AUC-ROC : %.4f" % mean_auc)
+        print("Mean BEDROC  : %.4f" % mean_bd)
 
 
 if __name__ == "__main__":

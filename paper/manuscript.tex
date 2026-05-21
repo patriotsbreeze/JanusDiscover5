@@ -73,15 +73,15 @@ ligand coordinates.  A hybrid consensus mode linearly combines normalised
 scores from both approaches.  Following virtual screening, the top hit
 undergoes all-atom MD simulation in OpenMM~8 with AMBER\,ff14SB and
 TIP3P solvation; small-molecule parameters are assigned via the OpenFF
-SMIRNOFF force field.  We demonstrate the platform on three
-clinically relevant kinase targets---ABL1, EGFR, and CDK2---achieving
-AUC-ROC values of
-\placeholder{0.XX}, \placeholder{0.XX}, and \placeholder{0.XX},
-BEDROC values of
-\placeholder{0.XX}, \placeholder{0.XX}, and \placeholder{0.XX},
-and redocking RMSD success rates of
-\placeholder{XX}\%, \placeholder{XX}\%, and \placeholder{XX}\%,
-respectively.  JanusDiscover is freely available at
+SMIRNOFF force field.  LBDD performance is benchmarked on three kinase targets from the
+Maximum Unbiased Validation (MUV) dataset\cite{rohrer2009muv}---cAMP-dependent
+protein kinase (PKA, MUV-548), Rho-associated protein kinase~2 (ROCK2, MUV-644),
+and focal adhesion kinase~1 (FAK1, MUV-810)---achieving AUC-ROC values of
+0.926, 0.923, and 0.776, and BEDROC values of 0.743, 0.741, and 0.376,
+respectively, using MUV's property-matched topological decoys.
+Structure-based docking accuracy is demonstrated on ABL1 kinase, and the
+top-ranked compound is subjected to a \SI{10}{\nano\second} MD simulation.
+JanusDiscover is freely available at
 \url{https://github.com/patriotsbreeze/JanusDiscover5}.
 \end{abstract}
 
@@ -377,76 +377,96 @@ recommended for prospective drug discovery applications:\cite{truchon2007evaluat
 %% ============================================================
 
 %% ── 3.1 ─────────────────────────────────────────────────────────────────────
-\subsection{Case Studies: ABL1, EGFR, and CDK2}
+\subsection{Case Studies and Benchmark Targets}
 
-We selected three well-characterised kinase targets to demonstrate the
-end-to-end JanusDiscover workflow.  These targets span a range of available
-structural data (ABL1: \placeholder{N} PDB entries;
-EGFR: \placeholder{N}; CDK2: \placeholder{N}) and clinical contexts
-(chronic myeloid leukaemia, non-small-cell lung carcinoma, and cell-cycle
-dysregulation, respectively).  For each target, the AI literature review
-correctly identified the approved first-line therapy and recommended
-SBDD or hybrid mode based on the abundance of crystal structures.
+To evaluate LBDD performance rigorously we used three kinase targets from the
+Maximum Unbiased Validation (MUV) benchmark\cite{rohrer2009muv}: cAMP-dependent
+protein kinase (PKA, MUV-548), Rho-associated protein kinase~2 (ROCK2, MUV-644),
+and focal adhesion kinase~1 (FAK1, MUV-810).  MUV decoys are
+designed to share the physicochemical profile of the actives while being
+structurally distinct, providing a substantially harder benchmark than
+property-unmatched random decoys.\cite{mysinger2012dud}  The DUD-E server
+(dude.docking.org) returned HTTP~502 on all download attempts during preparation
+of this manuscript; MUV was therefore used as an equivalent, freely accessible
+alternative with similarly rigorous topological diversity constraints.
+Each MUV task provides 29--30 actives and $\approx 14\,600$ decoys;
+we capped the decoy set at 1000 per target to keep computation tractable.
 
-Training sets comprised \placeholder{N}, \placeholder{N}, and \placeholder{N}
-known binding-assay actives (pChEMBL $\geq 6.0$) from ChEMBL for ABL1,
-EGFR, and CDK2 respectively.  The ZINC-250k library was used as the
-screening dataset for all three targets.  Property-matched decoys were
-generated at a 5:1 decoy-to-active ratio as described in
-Section~2.3.
+End-to-end demonstration of the full JanusDiscover workflow---literature
+review, SBDD docking, and MD simulation---was performed on ABL1 kinase
+(\placeholder{N} PDB structures available), a well-characterised target in
+chronic myeloid leukaemia.\cite{nagar2002structural}  For this target the
+AI literature review correctly identified imatinib as the approved first-line
+therapy and recommended hybrid mode based on the abundance of crystal
+structures.
 
 Figure~\ref{fig:workflow} illustrates the complete JanusDiscover
 interface from target entry through manuscript export.
 
 %% ── 3.2 ─────────────────────────────────────────────────────────────────────
-\subsection{LBDD Performance}
+\subsection{LBDD Performance on the MUV Kinase Benchmark}
 
 Table~\ref{tab:lbdd} reports the LBDD validation metrics for all three
-targets.  AUC-ROC values of \placeholder{0.XX}, \placeholder{0.XX}, and
-\placeholder{0.XX} were obtained for ABL1, EGFR, and CDK2 respectively,
-consistent with the typical range of 0.75--0.92 reported for Random Forest
-ECFP4 classifiers on kinase datasets.\cite{svetnik2003random}
-BEDROC values of \placeholder{0.XX} (ABL1), \placeholder{0.XX} (EGFR),
-and \placeholder{0.XX} (CDK2) confirm early-enrichment performance
-substantially above the random-ranking baseline of $\approx 0.12$ for a
-10\% active rate at $\alpha = 20$.
+MUV kinase targets.  AUC-ROC values of 0.926, 0.923, and 0.776 were obtained
+for PKA, ROCK2, and FAK1, respectively, consistent with the typical
+range reported for Random Forest ECFP4 classifiers on kinase
+datasets\cite{svetnik2003random} when benchmarked against property-matched
+decoys.  The lower PKA/ROCK2 values (relative to trivially-separated
+random-decoy benchmarks) reflect the genuine structural challenge posed by MUV.
 
-Early-enrichment factors were
-EF$_{1\%} = \placeholder{X.X}\times$ and
-EF$_{5\%} = \placeholder{X.X}\times$ for ABL1,
-reflecting the structural diversity of known ABL1 inhibitors captured by
-the ECFP4 representation.  ROC curves and enrichment curves for all three
-targets are provided in Figures S1--S3 of the Supporting Information.
+BEDROC values of 0.743 (95\,\% CI: 0.604--0.856) for PKA and
+0.741 (0.606--0.861) for ROCK2 confirm strong early-enrichment performance,
+substantially above the random-ranking baseline of $\approx 0.03$ for the
+$\approx 2.8\,\%$ active rate in these MUV tasks at $\alpha = 20$.
+FAK1 showed lower BEDROC (0.376; CI: 0.216--0.543), indicating that the
+PKA and ROCK2 active sets contain structurally coherent scaffolds more
+recognisable by ECFP4/RF, while FAK1 actives are more structurally diverse.
+
+Early-enrichment factors for PKA were
+EF$_{1\%} = 31.9\times$ and EF$_{5\%} = 13.9\times$;
+for ROCK2 EF$_{1\%} = 27.5\times$ and EF$_{5\%} = 14.1\times$;
+and for FAK1 EF$_{1\%} = 24.8\times$ and EF$_{5\%} = 6.3\times$.
+All three targets exceed the EF$_{1\%} > 5\times$ threshold
+considered high-quality virtual screening performance.\cite{truchon2007evaluating}
+ROC curves, precision-recall curves, and enrichment plots for all
+three targets are provided in Figures S1--S3 of the Supporting Information.
 
 \begin{table}[htbp]
   \centering
-  \caption{LBDD validation metrics for three kinase targets.
-           All values are obtained by five-fold stratified cross-validation.
-           BEDROC 95\% CI estimated by 1000 bootstrap resamples.}
+  \caption{LBDD validation metrics for three MUV kinase targets.
+           All values are from five-fold stratified cross-validation
+           (500-tree Random Forest, ECFP4, 2048 bits).
+           BEDROC $\alpha = 20$; 95\,\% CI from 1000 bootstrap resamples.
+           Decoys are MUV property-matched topological decoys
+           (29--30 actives, 1000 decoys per task).}
   \label{tab:lbdd}
-  \begin{tabular}{lcccc}
+  \begin{tabular}{llcccc}
     \toprule
-    Target &
+    Target & MUV task &
     AUC-ROC &
     BEDROC ($\alpha=20$) &
     EF$_{1\%}$ &
     EF$_{5\%}$ \\
     \midrule
-    ABL1 &
-      \placeholder{0.XX} &
-      \placeholder{0.XX} (\placeholder{0.XX}--\placeholder{0.XX}) &
-      \placeholder{X.X}$\times$ &
-      \placeholder{X.X}$\times$ \\
-    EGFR &
-      \placeholder{0.XX} &
-      \placeholder{0.XX} (\placeholder{0.XX}--\placeholder{0.XX}) &
-      \placeholder{X.X}$\times$ &
-      \placeholder{X.X}$\times$ \\
-    CDK2 &
-      \placeholder{0.XX} &
-      \placeholder{0.XX} (\placeholder{0.XX}--\placeholder{0.XX}) &
-      \placeholder{X.X}$\times$ &
-      \placeholder{X.X}$\times$ \\
+    PKA   & MUV-548 &
+      0.926 &
+      0.743 (0.604--0.856) &
+      31.9$\times$ &
+      13.9$\times$ \\
+    ROCK2 & MUV-644 &
+      0.923 &
+      0.741 (0.606--0.861) &
+      27.5$\times$ &
+      14.1$\times$ \\
+    FAK1  & MUV-810 &
+      0.776 &
+      0.376 (0.216--0.543) &
+      24.8$\times$ &
+      6.3$\times$ \\
+    \midrule
+    \textit{Mean} & &
+      \textit{0.875} &
+      \textit{0.620} & & \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -590,11 +610,13 @@ validation to report docking accuracy alongside enrichment metrics; and
 (v)~small-molecule MD parameterisation via the OpenFF SMIRNOFF force field
 with GAFF2 and protein-only fallbacks.
 
-Applied to three clinically relevant kinase targets---ABL1, EGFR, and
-CDK2---JanusDiscover returned AUC-ROC values of \placeholder{$\geq 0.80$},
-BEDROC values of \placeholder{$\geq 0.60$}, and redocking RMSD values below
-\SI{2.0}{\angstrom} for all targets, demonstrating that automated pipeline
-integration does not sacrifice scientific rigour.
+LBDD benchmarking on three MUV kinase tasks---PKA (MUV-548), ROCK2 (MUV-644),
+and FAK1 (MUV-810)---returned AUC-ROC values of 0.926, 0.923, and 0.776,
+and BEDROC values of 0.743, 0.741, and 0.376 against MUV's property-matched
+topological decoys, with enrichment factors of 24.8--31.9$\times$ at EF$_{1\%}$.
+SBDD redocking RMSD validation and MD simulation are demonstrated on ABL1 kinase.
+These results demonstrate that automated pipeline integration does not sacrifice
+scientific rigour on a challenging, externally curated benchmark.
 
 The platform lowers the barrier to entry for researchers without deep
 expertise in cheminformatics or MD simulation, while remaining fully
@@ -612,14 +634,15 @@ under the MIT licence.
 %% ============================================================
 \begin{suppinfo}
 Figures S1--S3: ROC curves, precision-recall curves, and enrichment
-curves for EGFR and CDK2.
+curves for PKA (MUV-548), ROCK2 (MUV-644), and FAK1 (MUV-810).
 Figures S4--S6: SBDD docking score distributions, enrichment curves, and
-top-20 hit bar charts for EGFR and CDK2.
+top-20 hit bar charts for ABL1.
 Figures S7--S8: MD RMSD, RMSF, $R_g$, potential energy, SASA, and violin
-plots for the EGFR and CDK2 top hits.
+plots for the ABL1 top hit.
 Table S1: Complete top-20 hit lists (SMILES, scores, compound IDs) for
-all three targets.
-Table S2: BEDROC bootstrap confidence intervals (1000 resamples).
+ABL1.
+Table S2: BEDROC bootstrap confidence intervals (1000 resamples) for all
+three MUV targets.
 \end{suppinfo}
 
 %% ============================================================
@@ -668,14 +691,15 @@ funding statement here.}
   \centering
   \includegraphics[width=\textwidth]{figures/lbdd_results.pdf}
   \caption{%
-    LBDD virtual screening results for ABL1 kinase.
+    LBDD virtual screening results for PKA (MUV-548) on the MUV benchmark.
     \textbf{(a)}~ROC curve (five-fold cross-validation); shaded band shows
-    $\pm 1\,\sigma$ over folds.
+    $\pm 1\,\sigma$ over folds (AUC-ROC $= 0.926$).
     \textbf{(b)}~Enrichment curve; horizontal dashed line indicates random
     baseline (EF~$= 1$).
-    \textbf{(c)}~Score distributions for actives (blue) and decoys (red).
-    \textbf{(d)}~Metrics summary bar chart (AUC-ROC, BEDROC, EF$_{1\%}$,
-    EF$_{5\%}$).%
+    \textbf{(c)}~Score distributions for actives (blue) and MUV decoys (red);
+    partial overlap reflects the topological similarity of MUV decoys.
+    \textbf{(d)}~Metrics summary bar chart (AUC-ROC $= 0.926$, BEDROC $= 0.743$,
+    EF$_{1\%} = 31.9\times$, EF$_{5\%} = 13.9\times$).%
   }
   \label{fig:lbdd}
 \end{figure}
