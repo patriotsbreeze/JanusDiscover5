@@ -1,0 +1,50 @@
+[
+  {
+    "target": "ABL1",
+    "target_full": "ABL1 kinase",
+    "chembl_id": "CHEMBL1862",
+    "n_actives": 500,
+    "n_decoys": 2500,
+    "n_total": 3000,
+    "auc_roc": 0.9969,
+    "bedroc": 0.9955,
+    "bedroc_ci_lo": 0.9931,
+    "bedroc_ci_hi": 0.9975,
+    "ef1_percent": 6.0,
+    "ef5_percent": 6.0,
+    "figures_dir": "I:\\blobr.DESKTOP-0PLPMJC\\Documents\\Github\\JanusDiscover5\\paper\\results\\figures\\ABL1",
+    "runtime_s": 67.8
+  },
+  {
+    "target": "EGFR",
+    "target_full": "EGFR",
+    "chembl_id": "CHEMBL203",
+    "n_actives": 500,
+    "n_decoys": 2500,
+    "n_total": 3000,
+    "auc_roc": 0.9993,
+    "bedroc": 0.9988,
+    "bedroc_ci_lo": 0.998,
+    "bedroc_ci_hi": 0.9994,
+    "ef1_percent": 6.0,
+    "ef5_percent": 6.0,
+    "figures_dir": "I:\\blobr.DESKTOP-0PLPMJC\\Documents\\Github\\JanusDiscover5\\paper\\results\\figures\\EGFR",
+    "runtime_s": 68.3
+  },
+  {
+    "target": "CDK2",
+    "target_full": "CDK2",
+    "chembl_id": "CHEMBL301",
+    "n_actives": 500,
+    "n_decoys": 2500,
+    "n_total": 3000,
+    "auc_roc": 0.9966,
+    "bedroc": 0.9971,
+    "bedroc_ci_lo": 0.9953,
+    "bedroc_ci_hi": 0.9985,
+    "ef1_percent": 6.0,
+    "ef5_percent": 6.0,
+    "figures_dir": "I:\\blobr.DESKTOP-0PLPMJC\\Documents\\Github\\JanusDiscover5\\paper\\results\\figures\\CDK2",
+    "runtime_s": 54.6
+  }
+]
