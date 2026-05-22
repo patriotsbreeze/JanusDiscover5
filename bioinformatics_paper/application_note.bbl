@@ -1,0 +1,178 @@
+\begin{thebibliography}{20}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[DiMasi et~al.(2016)DiMasi, Grabowski, and
+  Hansen]{dimasi2016innovation}
+Joseph~A DiMasi, Henry~G Grabowski, and Ronald~W Hansen.
+\newblock Innovation in the pharmaceutical industry: New estimates of {R\&D}
+  costs.
+\newblock \emph{Journal of Health Economics}, 47:\penalty0 20--33, 2016.
+\newblock \doi{10.1016/j.jhealeco.2016.01.012}.
+
+\bibitem[Wouters et~al.(2020)Wouters, McKee, and Luyten]{wouters2020estimated}
+Olivier~J Wouters, Martin McKee, and Jeroen Luyten.
+\newblock Estimated research and development investment needed to bring a new
+  medicine to market, 2009--2018.
+\newblock \emph{JAMA}, 323\penalty0 (9):\penalty0 844--853, 2020.
+\newblock \doi{10.1001/jama.2020.1166}.
+
+\bibitem[Kitchen et~al.(2004)Kitchen, Decornez, Furr, and
+  Bajorath]{kitchen2004docking}
+Douglas~B Kitchen, H{\'e}l{\`e}ne Decornez, John~R Furr, and J{\"u}rgen
+  Bajorath.
+\newblock Docking and scoring in virtual screening for drug discovery: methods
+  and applications.
+\newblock \emph{Nature Reviews Drug Discovery}, 3\penalty0 (11):\penalty0
+  935--949, 2004.
+\newblock \doi{10.1038/nrd1549}.
+
+\bibitem[Sliwoski et~al.(2014)Sliwoski, Kothiwale, Meiler, and
+  Lowe]{sliwoski2014computational}
+Gregory Sliwoski, Sandeepkumar Kothiwale, Jens Meiler, and Edward~W Lowe.
+\newblock Computational methods in drug discovery.
+\newblock \emph{Pharmacological Reviews}, 66\penalty0 (1):\penalty0 334--395,
+  2014.
+\newblock \doi{10.1124/pr.112.007336}.
+
+\bibitem[Gaulton et~al.(2012)Gaulton, Bellis, Bento, Chambers, Davies, Hersey,
+  Light, McGlinchey, Michalovich, Al-Lazikani, et~al.]{gaulton2012chembl}
+Anna Gaulton, Louisa~J Bellis, A~Patricia Bento, Jon Chambers, Mark Davies,
+  Anne Hersey, Yvonne Light, Shaun McGlinchey, David Michalovich, Bissan
+  Al-Lazikani, et~al.
+\newblock {ChEMBL}: a large-scale bioactivity database for drug discovery.
+\newblock \emph{Nucleic Acids Research}, 40\penalty0 (D1):\penalty0
+  D1100--D1107, 2012.
+\newblock \doi{10.1093/nar/gkr777}.
+
+\bibitem[Landrum()]{rdkit}
+Gregory~A Landrum.
+\newblock {RDKit}: open-source cheminformatics.
+\newblock \url{https://www.rdkit.org}.
+\newblock Version 2024.03; accessed 2025.
+
+\bibitem[Irwin et~al.(2012)Irwin, Sterling, Mysinger, Bolstad, and
+  Coleman]{irwin2012zinc}
+John~J Irwin, Teague Sterling, Michael~M Mysinger, Erin~S Bolstad, and Ryan~G
+  Coleman.
+\newblock {ZINC}: a free tool to discover chemistry for biology.
+\newblock \emph{Journal of Chemical Information and Modeling}, 52\penalty0
+  (7):\penalty0 1757--1768, 2012.
+\newblock \doi{10.1021/ci3001277}.
+
+\bibitem[Mysinger et~al.(2012)Mysinger, Carchia, Irwin, and
+  Shoichet]{mysinger2012dud}
+Michael~M Mysinger, Michael Carchia, John~J Irwin, and Brian~K Shoichet.
+\newblock Directory of useful decoys, enhanced ({DUD-E}): better ligands and
+  decoys for better benchmarking.
+\newblock \emph{Journal of Medicinal Chemistry}, 55\penalty0 (14):\penalty0
+  6582--6594, 2012.
+\newblock \doi{10.1021/jm300687e}.
+
+\bibitem[Rogers and Hahn(2010)]{rogers2010extended}
+David Rogers and Mathew Hahn.
+\newblock Extended-connectivity fingerprints.
+\newblock \emph{Journal of Chemical Information and Modeling}, 50\penalty0
+  (5):\penalty0 742--754, 2010.
+\newblock \doi{10.1021/ci100050t}.
+
+\bibitem[Breiman(2001)]{breiman2001random}
+Leo Breiman.
+\newblock Random forests.
+\newblock \emph{Machine Learning}, 45\penalty0 (1):\penalty0 5--32, 2001.
+\newblock \doi{10.1023/A:1010933404324}.
+
+\bibitem[Pedregosa et~al.(2011)Pedregosa, Varoquaux, Gramfort, Michel, Thirion,
+  Grisel, Blondel, Prettenhofer, Weiss, Dubourg, et~al.]{pedregosa2011scikit}
+Fabian Pedregosa, Ga{\"e}l Varoquaux, Alexandre Gramfort, Vincent Michel,
+  Bertrand Thirion, Olivier Grisel, Mathieu Blondel, Peter Prettenhofer, Ron
+  Weiss, Vincent Dubourg, et~al.
+\newblock Scikit-learn: machine learning in {Python}.
+\newblock \emph{Journal of Machine Learning Research}, 12:\penalty0 2825--2830,
+  2011.
+
+\bibitem[Eberhardt et~al.(2021)Eberhardt, Santos-Martins, Tillack, and
+  Forli]{eberhardt2021autodock}
+Jerome Eberhardt, Diogo Santos-Martins, Andreas~F Tillack, and Stefano Forli.
+\newblock {AutoDock Vina} 1.2.0: new docking methods, expanded force field, and
+  {Python} bindings.
+\newblock \emph{Journal of Chemical Information and Modeling}, 61\penalty0
+  (8):\penalty0 3891--3898, 2021.
+\newblock \doi{10.1021/acs.jcim.1c00203}.
+
+\bibitem[Riniker and Landrum(2015)]{riniker2015better}
+Sereina Riniker and Gregory~A Landrum.
+\newblock Better informed distance geometry: using what we know to improve
+  conformation generation.
+\newblock \emph{Journal of Chemical Information and Modeling}, 55\penalty0
+  (12):\penalty0 2562--2574, 2015.
+\newblock \doi{10.1021/acs.jcim.5b00654}.
+
+\bibitem[Bemis and Murcko(1996)]{bemis1996properties}
+Guy~W Bemis and Mark~A Murcko.
+\newblock The properties of known drugs. 1. {Molecular} frameworks.
+\newblock \emph{Journal of Medicinal Chemistry}, 39\penalty0 (15):\penalty0
+  2887--2893, 1996.
+\newblock \doi{10.1021/jm9602928}.
+
+\bibitem[Eastman et~al.(2024)Eastman, Behara, Dotson, Galvelis, Herr, Horton,
+  Mao, Chodera, Pritchard, Wang, et~al.]{eastman2024openmm8}
+Peter Eastman, Pavan~Kumar Behara, David~L Dotson, Raimondas Galvelis, John~E
+  Herr, Josh~T Horton, Yuezhi Mao, John~D Chodera, Benjamin~P Pritchard, Yunsie
+  Wang, et~al.
+\newblock {OpenMM} 8: molecular dynamics simulation with machine learning
+  potentials.
+\newblock \emph{The Journal of Physical Chemistry B}, 128\penalty0
+  (1):\penalty0 109--116, 2024.
+\newblock \doi{10.1021/acs.jpcb.3c06662}.
+
+\bibitem[Maier et~al.(2015)Maier, Martinez, Kasavajhala, Wickstrom, Hauser, and
+  Simmerling]{maier2015ff14sb}
+James~A Maier, Carmenza Martinez, Koushik Kasavajhala, Lauren Wickstrom,
+  Kevin~E Hauser, and Carlos Simmerling.
+\newblock ff14{SB}: improving the accuracy of protein side chain and backbone
+  parameters from ff99{SB}.
+\newblock \emph{Journal of Chemical Theory and Computation}, 11\penalty0
+  (8):\penalty0 3696--3713, 2015.
+\newblock \doi{10.1021/acs.jctc.5b00255}.
+
+\bibitem[Jorgensen et~al.(1983)Jorgensen, Chandrasekhar, Madura, Impey, and
+  Klein]{jorgensen1983comparison}
+William~L Jorgensen, Jayaraman Chandrasekhar, Jeffry~D Madura, Roger~W Impey,
+  and Michael~L Klein.
+\newblock Comparison of simple potential functions for simulating liquid water.
+\newblock \emph{The Journal of Chemical Physics}, 79\penalty0 (2):\penalty0
+  926--935, 1983.
+\newblock \doi{10.1063/1.445869}.
+
+\bibitem[McGibbon et~al.(2015)McGibbon, Beauchamp, Harrigan, Klein, Swails,
+  Hern{\'a}ndez, Schwantes, Wang, Lane, and Pande]{mcgibbon2015mdtraj}
+Robert~T McGibbon, Kyle~A Beauchamp, Matthew~P Harrigan, Christoph Klein,
+  Jason~M Swails, Carlos~X Hern{\'a}ndez, Christian~R Schwantes, Lee-Ping Wang,
+  Thomas~J Lane, and Vijay~S Pande.
+\newblock {MDTraj}: a modern open library for the analysis of molecular
+  dynamics trajectories.
+\newblock \emph{Biophysical Journal}, 109\penalty0 (8):\penalty0 1528--1532,
+  2015.
+\newblock \doi{10.1016/j.bpj.2015.08.015}.
+
+\bibitem[Rohrer and Baumann(2009)]{rohrer2009muv}
+Sebastian~G Rohrer and Knut Baumann.
+\newblock Maximum unbiased validation ({MUV}) data sets for virtual screening
+  based on {PubChem} bioactivity data.
+\newblock \emph{Journal of Chemical Information and Modeling}, 49\penalty0
+  (2):\penalty0 169--184, 2009.
+\newblock \doi{10.1021/ci8002649}.
+
+\bibitem[Nagar et~al.(2003)Nagar, Bornmann, Pellicena, Schindler, Veach,
+  Miller, Clarkson, and Kuriyan]{nagar2002structural}
+Bhushan Nagar, William~G Bornmann, Patricia Pellicena, Thomas Schindler,
+  Darren~R Veach, William~T Miller, Bayard Clarkson, and John Kuriyan.
+\newblock Structural basis for the autoinhibition of c-{Abl} tyrosine kinase.
+\newblock \emph{Cell}, 112\penalty0 (6):\penalty0 859--871, 2003.
+\newblock \doi{10.1016/S0092-8674(03)00194-6}.
+
+\end{thebibliography}
