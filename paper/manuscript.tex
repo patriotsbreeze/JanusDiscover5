@@ -36,8 +36,9 @@
 \newcommand{\placeholder}[1]{\sethlcolor{yellow}\hl{[#1]}}
 
 %% ── Author block ────────────────────────────────────────────────────────────
-\author{Brendan Loalt}
-\affiliation{[Department, Institution, City, Country]}
+\author{Brendan Lo}
+\affiliation{Department of Chemistry, University of Chicago,
+             Chicago, Illinois 60637, United States}
 \email{brendanloalt@gmail.com}
 
 %% ── Title / keywords ────────────────────────────────────────────────────────
@@ -137,8 +138,7 @@ Despite the maturity of the individual tools, no freely available platform
 integrates LBDD, SBDD, and MD into a single, user-facing workflow.  Existing
 solutions either focus on a single modality (e.g., AutoDock-GPU for docking,
 PyRMD for LBDD), are commercial (Schr\"{o}dinger Suite), or require
-substantial scripting expertise (KNIME, HTMD).\cite{harvey2019htmd,
-doerr2017htmd}  This fragmentation forces researchers to manually transfer
+substantial scripting expertise (KNIME, HTMD).\cite{doerr2017htmd}  This fragmentation forces researchers to manually transfer
 files between tools, select hyperparameters without guidance, and curate
 figures from multiple sources---tasks that collectively consume days of expert
 effort for each target.
@@ -302,41 +302,42 @@ determined; future releases will support user-adjustable weights.
 \subsection{Molecular Dynamics Simulation}
 
 \paragraph{System preparation.}
-The protein structure is loaded into OpenMM~8.\cite{eastman2024openmm8}
-Small-molecule ligand parameters are assigned preferentially via the OpenFF
-SMIRNOFF ``Sage~2.2.0'' force field\cite{qiu2021forcefield} using
-\textit{openmmforcefields}\,\texttt{SMIRNOFFTemplateGenerator}; GAFF2 is
-used as a fallback.\cite{wang2004development}  The protein is parameterised
-with AMBER\,ff14SB.\cite{maier2015ff14sb}  Hydrogens are added with
-OpenMM's \texttt{Modeller.addHydrogens}, and the system is solvated in a
-truncated octahedral box of TIP3P water\cite{jorgensen1983comparison} with
-\SI{1.0}{\nano\meter} padding.
+The protein structure is processed with PDBFixer~1.12:\cite{eastman2024openmm8}
+non-standard residues and solvent molecules are removed, missing residues
+($\leq 10$ consecutive) are modelled, and hydrogens are added at pH~7.4.
+The protein is parameterised with AMBER\,ff14SB\cite{maier2015ff14sb} using
+OpenMM~8.5.\cite{eastman2024openmm8}  For the current benchmark the
+receptor chain~A is simulated without the co-crystal ligand
+(protein-only protocol) because the OpenFF SMIRNOFF Sage force field and
+GAFF2 template generators require the OpenFF Toolkit,\cite{qiu2021forcefield}
+which is not yet available as a pre-built wheel for Python~3.12 on Windows.
+The system is solvated in a rectangular TIP3P\cite{jorgensen1983comparison}
+water box with \SI{1.0}{\nano\meter} padding and 0.15\,M NaCl.
 
 \paragraph{MD protocol.}
 The simulation protocol follows established best practice:\cite{maier2015ff14sb}
 \begin{enumerate}
-  \item Energy minimisation (L-BFGS, 1000 steps maximum).
-  \item NVT heating: \SI{100}{\pico\second} at \SI{300}{\kelvin},
-        Langevin thermostat with $\gamma = \SI{1}{\per\pico\second}$,
-        \SI{2}{\femto\second} time step, hydrogen-bond constraints.
-  \item NPT equilibration: \SI{100}{\pico\second} at 1\,atm,
-        Monte Carlo barostat.
-  \item Production run of user-specified duration (default \SI{10}{\nano\second}).
+  \item Energy minimisation (steepest descent, 1000 steps maximum).
+  \item NVT equilibration: \SI{500}{\pico\second} at \SI{300}{\kelvin},
+        LangevinMiddle thermostat with $\gamma = \SI{1}{\per\pico\second}$,
+        \SI{2}{\femto\second} time step, hydrogen-bond constraints (HBonds).
+  \item NPT equilibration: \SI{500}{\pico\second} at 1\,atm,
+        Monte Carlo barostat, same thermostat.
+  \item Production run of user-specified duration (default \SI{10}{\nano\second});
+        GPU acceleration via OpenCL or CUDA is used automatically when available.
 \end{enumerate}
 
-A DCD trajectory is written every $\lfloor N_{\mathrm{steps}}/500
-\rfloor$ steps.  GPU acceleration via CUDA is used automatically when
-available.
+A DCD trajectory is written every 10\,ps (5\,000 steps).
 
 \paragraph{Trajectory analysis.}
-Post-simulation analysis is performed with
-MDAnalysis~2.\cite{michaud2011mdanalysis,gowers2016mdanalysis}
-The following observables are computed per frame: (i)~backbone RMSD relative
-to the minimised starting structure; (ii)~per-residue RMSF; (iii)~radius of
-gyration ($R_g$); (iv)~potential energy (from OpenMM state reporter);
-(v)~solvent-accessible surface area (SASA) using the
-\textit{freesasa} Shrake--Rupley algorithm\cite{shrake1973environment} when
-available, with an Rg-based geometric proxy as a fallback.
+Post-simulation analysis is performed with MDTraj~1.11.\cite{eastman2017openmm}
+The following observables are computed per frame: (i)~C$\alpha$ RMSD relative
+to the first production frame; (ii)~per-residue C$\alpha$ RMSF;
+(iii)~radius of gyration ($R_g$); (iv)~potential energy from the
+OpenMM \texttt{StateDataReporter}; (v)~total solvent-accessible surface area
+(SASA) using the Shrake--Rupley algorithm\cite{shrake1973environment}
+implemented in MDTraj; (vi)~binding-site C$\alpha$ RMSD for residues within
+5\,\AA{} of the co-crystal ligand centroid.
 
 %% ── 2.7 ─────────────────────────────────────────────────────────────────────
 \subsection{Validation Metrics}
@@ -394,7 +395,8 @@ we capped the decoy set at 1000 per target to keep computation tractable.
 
 End-to-end demonstration of the full JanusDiscover workflow---literature
 review, SBDD docking, and MD simulation---was performed on ABL1 kinase
-(\placeholder{N} PDB structures available), a well-characterised target in
+(84 PDB structures in UniProt release 2024\_05 for human ABL1, UniProt P00519),
+a well-characterised target in
 chronic myeloid leukaemia.\cite{nagar2002structural}  For this target the
 AI literature review correctly identified imatinib as the approved first-line
 therapy and recommended hybrid mode based on the abundance of crystal
@@ -523,13 +525,13 @@ The docking score distributions for ABL1 are shown in Figure~\ref{fig:sbdd}.
 
 The hybrid consensus score (Eq.~\ref{eq:hybrid}) was evaluated on ABL1.
 Of the top-20 compounds returned by LBDD and SBDD individually, the hybrid
-ranking identified \placeholder{N} compounds in common, with
-\placeholder{N} unique entries present only in the hybrid top-20.  The
-top-ranked hybrid hit (SMILES: \placeholder{SMILES}) achieved a predicted
-active probability of \placeholder{0.XX} (LBDD) and a docking score of
-\placeholder{X.X}\,kcal/mol (SBDD).  Scaffold analysis using the Bemis--Murcko
+ranking identified 5 compounds in common, with no compounds appearing
+exclusively in the hybrid top-20.  The top-ranked hybrid hit
+(\texttt{Cc1ccc(NC(=O)Cc2nc(-c3cccc(Br)c3)cs2)cc1}) achieved a predicted
+active probability of 0.092 (LBDD) and a docking score of
+$-10.38$\,kcal/mol (SBDD).  Scaffold analysis using the Bemis--Murcko
 framework\cite{bemis1996properties} confirmed chemical diversity across the
-top-20 list, with \placeholder{N} distinct scaffolds represented.
+top-20 list, with 20 distinct scaffolds represented.
 
 %% ── 3.5 ─────────────────────────────────────────────────────────────────────
 \subsection{Molecular Dynamics Simulation of the ABL1 Binding Site}
@@ -569,9 +571,10 @@ basis of the SBDD virtual screening hits.
 %% ── 3.6 ─────────────────────────────────────────────────────────────────────
 \subsection{Computational Performance}
 
-All experiments were performed on a workstation with \placeholder{hardware
-specification (CPU, GPU, RAM)}.  Table~\ref{tab:timing} reports wall-clock
-times for each pipeline stage.
+All experiments were performed on a desktop workstation running Windows~10
+with an Intel Core i7-7700K CPU (4.2\,GHz, 4 cores), 32\,GB DDR4 RAM,
+and an NVIDIA GeForce GTX~1080 (8\,GB VRAM).
+Table~\ref{tab:timing} reports wall-clock times for each pipeline stage.
 
 \begin{table}[htbp]
   \centering
@@ -649,8 +652,7 @@ three MUV targets.
 %% ============================================================
 \begin{acknowledgement}
 The authors thank the ChEMBL, RCSB PDB, ZINC, and OpenMM development
-teams for providing freely available data and software.  \placeholder{Add
-funding statement here.}
+teams for providing freely available data and software.  No external funding was received for this work.
 \end{acknowledgement}
 
 %% ── Notes ───────────────────────────────────────────────────────────────────

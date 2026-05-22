@@ -1,0 +1,157 @@
+{
+  "target": "ABL1",
+  "n_screen": 200,
+  "n_docked": 200,
+  "n_valid": 200,
+  "lbdd_actives": 100,
+  "lbdd_negatives": 200,
+  "n_top": 20,
+  "overlap_lbdd_sbdd": 5,
+  "hybrid_unique": 0,
+  "n_scaffolds_top20": 20,
+  "top_hit_smiles": "Cc1ccc(NC(=O)Cc2nc(-c3cccc(Br)c3)cs2)cc1",
+  "top_hit_lbdd_prob": 0.092,
+  "top_hit_sbdd": -10.377,
+  "top_hits": [
+    {
+      "rank": 1,
+      "smiles": "Cc1ccc(NC(=O)Cc2nc(-c3cccc(Br)c3)cs2)cc1",
+      "lbdd_prob": 0.092,
+      "sbdd_score": -10.377,
+      "hybrid_score": 2.0437
+    },
+    {
+      "rank": 2,
+      "smiles": "COc1ccc(-c2ccc(OCCNC(=O)c3cc4ccccc4oc3=O)nn2)cc1",
+      "lbdd_prob": 0.054,
+      "sbdd_score": -11.486,
+      "hybrid_score": 1.9896
+    },
+    {
+      "rank": 3,
+      "smiles": "CS(=O)(=O)c1ccccc1C(=O)Nc1ccc(Cc2nc3ccccc3s2)cc1",
+      "lbdd_prob": 0.078,
+      "sbdd_score": -10.618,
+      "hybrid_score": 1.9402
+    },
+    {
+      "rank": 4,
+      "smiles": "Cc1cc(NC(=O)[C@@H](C)SCC(=O)Nc2cccc(C(F)(F)F)c2)no1",
+      "lbdd_prob": 0.1,
+      "sbdd_score": -9.906,
+      "hybrid_score": 1.9366
+    },
+    {
+      "rank": 5,
+      "smiles": "COc1ccc(C)c2sc(NC(=O)c3cccc(NS(=O)(=O)c4ccccc4)c3)nc12",
+      "lbdd_prob": 0.114,
+      "sbdd_score": -9.374,
+      "hybrid_score": 1.895
+    },
+    {
+      "rank": 6,
+      "smiles": "Cc1cc(OCC(=O)c2ccccc2)cc2c1C(=O)/C(=C/c1cccc(F)c1)O2",
+      "lbdd_prob": 0.068,
+      "sbdd_score": -10.556,
+      "hybrid_score": 1.7496
+    },
+    {
+      "rank": 7,
+      "smiles": "O=C(CCCNC(=O)N1CC(O)=Nc2ccccc21)Nc1ccc(Oc2ccccc2)cc1",
+      "lbdd_prob": 0.066,
+      "sbdd_score": -10.615,
+      "hybrid_score": 1.7471
+    },
+    {
+      "rank": 8,
+      "smiles": "CC(=O)Nc1cc(NCc2cccc3cn[nH]c23)ccc1C",
+      "lbdd_prob": 0.096,
+      "sbdd_score": -9.522,
+      "hybrid_score": 1.6813
+    },
+    {
+      "rank": 9,
+      "smiles": "C[C@H]1C=[N+]2C(=N)/C(=C/c3ccc(OC(=O)c4ccc(F)cc4)c(Br)c3)C(=O)N=C2S1",
+      "lbdd_prob": 0.044,
+      "sbdd_score": -10.998,
+      "hybrid_score": 1.5866
+    },
+    {
+      "rank": 10,
+      "smiles": "CC(=O)Nc1c(C)cc(NC(=O)c2cc(C)nc3c2c(=O)[nH]n3C)cc1C",
+      "lbdd_prob": 0.11,
+      "sbdd_score": -8.831,
+      "hybrid_score": 1.5604
+    },
+    {
+      "rank": 11,
+      "smiles": "Cc1ccc(OCC(=O)Oc2ccc(C(=O)Nc3ccccc3)cc2)cc1",
+      "lbdd_prob": 0.066,
+      "sbdd_score": -10.107,
+      "hybrid_score": 1.4938
+    },
+    {
+      "rank": 12,
+      "smiles": "NNC(=O)COc1ccc(-c2n[nH]c(C(F)(F)F)c2-c2ccc(Cl)cc2)c(O)c1",
+      "lbdd_prob": 0.124,
+      "sbdd_score": -8.188,
+      "hybrid_score": 1.4635
+    },
+    {
+      "rank": 13,
+      "smiles": "Cc1nn(-c2ccc(F)c(F)c2)c2ncc3c(c12)C(=O)N(c1cccc2ccccc12)C3=O",
+      "lbdd_prob": 0.074,
+      "sbdd_score": -9.753,
+      "hybrid_score": 1.4451
+    },
+    {
+      "rank": 14,
+      "smiles": "CNC(=O)c1cc(NC(=O)N[C@H](c2ccccc2)C2CC2)ccc1Cl",
+      "lbdd_prob": 0.062,
+      "sbdd_score": -9.866,
+      "hybrid_score": 1.3098
+    },
+    {
+      "rank": 15,
+      "smiles": "CC(C)Cc1ccc([C@@H](C)C(=O)N[C@H](C(=O)[O-])C(C)C)cc1",
+      "lbdd_prob": 0.09,
+      "sbdd_score": -8.882,
+      "hybrid_score": 1.2665
+    },
+    {
+      "rank": 16,
+      "smiles": "C=C(C)COc1ccc(C(=O)Nc2cccc(N(C)C(C)=O)c2)cc1",
+      "lbdd_prob": 0.076,
+      "sbdd_score": -9.319,
+      "hybrid_score": 1.2607
+    },
+    {
+      "rank": 17,
+      "smiles": "O=c1c2cc(Cl)c(Br)cc2ncn1C[C@@H](O)CNc1ccc(Cl)cc1",
+      "lbdd_prob": 0.094,
+      "sbdd_score": -8.709,
+      "hybrid_score": 1.2441
+    },
+    {
+      "rank": 18,
+      "smiles": "CC(C)[NH+](C)Cc1ccccc1CNc1ncnc2[nH]cnc12",
+      "lbdd_prob": 0.118,
+      "sbdd_score": -7.858,
+      "hybrid_score": 1.2032
+    },
+    {
+      "rank": 19,
+      "smiles": "Cc1ccc(OCC(=O)NNC(=O)c2ccc(NC(=O)C(C)C)cc2)cc1",
+      "lbdd_prob": 0.04,
+      "sbdd_score": -10.241,
+      "hybrid_score": 1.1454
+    },
+    {
+      "rank": 20,
+      "smiles": "CC(C)(C)Oc1cccc(-c2cc(=O)n3nccc3[nH]2)c1",
+      "lbdd_prob": 0.076,
+      "sbdd_score": -9.023,
+      "hybrid_score": 1.1132
+    }
+  ]
+}

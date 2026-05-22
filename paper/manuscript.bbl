@@ -8,7 +8,7 @@
 \providecommand*\mcitethebibliography{\thebibliography}
 \csname @ifundefined\endcsname{endmcitethebibliography}
   {\let\endmcitethebibliography\endthebibliography}{}
-\begin{mcitethebibliography}{36}
+\begin{mcitethebibliography}{32}
 \providecommand*\natexlab[1]{#1}
 \providecommand*\mciteSetBstSublistMode[1]{}
 \providecommand*\mciteSetBstMaxWidthForm[2]{}
@@ -80,11 +80,11 @@ Hughes,~J.~P.; Rees,~S.; Kalindjian,~S.~B.; Philpott,~K.~L. Principles of early
 {\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
 \EndOfBibitem
 \bibitem[Johnson and Maggiora(1990)Johnson, and Maggiora]{johnson1990concepts}
-Johnson,~M.~A.; Maggiora,~G.~M. Concepts and applications of molecular
-  similarity. \emph{Wiley-Interscience} \textbf{1990}, \relax
-\mciteBstWouldAddEndPunctfalse
+Johnson,~M.~A.; Maggiora,~G.~M. \emph{Concepts and Applications of Finite
+  Element Analysis}; Wiley-Interscience: New York, 1990\relax
+\mciteBstWouldAddEndPuncttrue
 \mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
-{}{\mcitedefaultseppunct}\relax
+{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
 \EndOfBibitem
 \bibitem[Rogers and Hahn(2010)Rogers, and Hahn]{rogers2010extended}
 Rogers,~D.; Hahn,~M. Extended-connectivity fingerprints. \emph{Journal of
@@ -193,15 +193,6 @@ Qiu,~Y.; Smith,~D. G.~A.; Boothroyd,~S.; Jang,~H.; Hahn,~D.~F.; Wagner,~J.;
 {\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
 \EndOfBibitem
 \bibitem[Doerr \latin{et~al.}(2016)Doerr, Harvey, No{\'e}, and
-  De~Fabritiis]{harvey2019htmd}
-Doerr,~S.; Harvey,~M.~J.; No{\'e},~F.; De~Fabritiis,~G. {HTMD}: high-throughput
-  molecular dynamics for molecular discovery. \emph{Journal of Chemical Theory
-  and Computation} \textbf{2016}, \emph{12}, 1845--1852\relax
-\mciteBstWouldAddEndPuncttrue
-\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
-{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
-\EndOfBibitem
-\bibitem[Doerr \latin{et~al.}(2016)Doerr, Harvey, No{\'e}, and
   De~Fabritiis]{doerr2017htmd}
 Doerr,~S.; Harvey,~M.~J.; No{\'e},~F.; De~Fabritiis,~G. {HTMD}: high-throughput
   molecular dynamics for molecular discovery. \emph{Journal of Chemical Theory
@@ -275,42 +266,12 @@ Riniker,~S.; Landrum,~G.~A. Better informed distance geometry: using what we
 \mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
 {\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
 \EndOfBibitem
-\bibitem[Wang \latin{et~al.}(2004)Wang, Wolf, Caldwell, Kollman, and
-  Case]{wang2004development}
-Wang,~J.; Wolf,~R.~M.; Caldwell,~J.~W.; Kollman,~P.~A.; Case,~D.~A. Development
-  and testing of a general {Amber} force field. \emph{Journal of Computational
-  Chemistry} \textbf{2004}, \emph{25}, 1157--1174\relax
-\mciteBstWouldAddEndPuncttrue
-\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
-{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
-\EndOfBibitem
 \bibitem[Jorgensen \latin{et~al.}(1983)Jorgensen, Chandrasekhar, Madura, Impey,
   and Klein]{jorgensen1983comparison}
 Jorgensen,~W.~L.; Chandrasekhar,~J.; Madura,~J.~D.; Impey,~R.~W.; Klein,~M.~L.
   Comparison of simple potential functions for simulating liquid water.
   \emph{The Journal of Chemical Physics} \textbf{1983}, \emph{79},
   926--935\relax
-\mciteBstWouldAddEndPuncttrue
-\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
-{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
-\EndOfBibitem
-\bibitem[Michaud-Agrawal \latin{et~al.}(2011)Michaud-Agrawal, Denning, Woolf,
-  and Beckstein]{michaud2011mdanalysis}
-Michaud-Agrawal,~N.; Denning,~E.~J.; Woolf,~T.~B.; Beckstein,~O. {MDAnalysis}:
-  a toolkit for the analysis of molecular dynamics simulations. \emph{Journal
-  of Computational Chemistry} \textbf{2011}, \emph{32}, 2319--2327\relax
-\mciteBstWouldAddEndPuncttrue
-\mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
-{\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
-\EndOfBibitem
-\bibitem[Gowers \latin{et~al.}(2016)Gowers, Linke, Barnoud, Reddy, Melo,
-  Seyler, Doma{\'n}ski, Dotson, Buchoux, Kenney, \latin{et~al.}
-  others]{gowers2016mdanalysis}
-Gowers,~R.~J.; Linke,~M.; Barnoud,~J.; Reddy,~T. J.~E.; Melo,~M.~N.;
-  Seyler,~S.~L.; Doma{\'n}ski,~J.; Dotson,~D.~L.; Buchoux,~S.; Kenney,~I.~M.;
-  others {MDAnalysis}: a {Python} package for the rapid analysis of molecular
-  dynamics simulations. Proceedings of the 15th Python in Science Conference.
-  2016; pp 98--105\relax
 \mciteBstWouldAddEndPuncttrue
 \mciteSetBstMidEndSepPunct{\mcitedefaultmidpunct}
 {\mcitedefaultendpunct}{\mcitedefaultseppunct}\relax
